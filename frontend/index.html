@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EPUB Translate - Inglês para Português BR</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📚 EPUB Translate</h1>
+            <p>Traduza livros EPUB do inglês para português brasileiro preservando estrutura, imagens e formatação</p>
+        </header>
+
+        <main>
+            <!-- Upload Section -->
+            <section id="uploadSection" class="card">
+                <h2>Enviar Arquivo</h2>
+                <form id="uploadForm" enctype="multipart/form-data">
+                    <div class="upload-area" id="uploadArea">
+                        <input type="file" id="fileInput" name="file" accept=".epub" required>
+                        <div class="upload-content">
+                            <div class="upload-icon">📁</div>
+                            <p class="upload-text">Arraste e solte seu arquivo EPUB aqui</p>
+                            <p class="upload-or">ou</p>
+                            <button type="button" class="btn-secondary" onclick="document.getElementById('fileInput').click()">Selecionar Arquivo</button>
+                            <p class="upload-hint">Máximo 50MB</p>
+                        </div>
+                        <div class="file-selected" id="fileSelected" style="display: none;">
+                            <span class="file-name" id="fileName"></span>
+                            <button type="button" class="btn-remove" onclick="removeFile()">✕</button>
+                        </div>
+                    </div>
+
+                    <div class="settings">
+                        <h3>Configurações de Tradução</h3>
+                        <div class="form-group">
+                            <label for="provider">Provedor</label>
+                            <select id="provider" name="provider">
+                                <option value="ollama" selected>Ollama (Local)</option>
+                                <option value="openai">OpenAI</option>
+                                <option value="gemini">Google Gemini</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="model">Modelo</label>
+                            <input type="text" id="model" name="model" value="translategemma:4b" placeholder="translategemma:4b">
+                        </div>
+                        <div class="form-group">
+                            <label for="baseUrl">Ollama URL</label>
+                            <input type="text" id="baseUrl" name="baseUrl" value="http://localhost:11434" placeholder="http://localhost:11434">
+                        </div>
+                        <div class="form-group">
+                            <label for="apiKey">API Key (apenas para OpenAI/Gemini)</label>
+                            <input type="password" id="apiKey" name="apiKey" placeholder="sk-... ou chave Gemini">
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn-primary" id="submitBtn">Traduzir Livro</button>
+                </form>
+            </section>
+
+            <!-- Progress Section -->
+            <section id="progressSection" class="card" style="display: none;">
+                <h2>Processando</h2>
+                <div class="progress-info">
+                    <p id="progressMessage">Iniciando...</p>
+                    <div class="progress-bar-container">
+                        <div class="progress-bar" id="progressBar" style="width: 0%"></div>
+                    </div>
+                    <p class="progress-percent" id="progressPercent">0%</p>
+                </div>
+            </section>
+
+            <!-- Result Section -->
+            <section id="resultSection" class="card" style="display: none;">
+                <h2>✅ Tradução Concluída!</h2>
+                <p>Seu livro foi traduzido com sucesso preservando capítulos, sumário, imagens e formatação.</p>
+                <a id="downloadLink" href="#" class="btn-primary" download>Baixar EPUB Traduzido</a>
+                <button type="button" class="btn-secondary" onclick="resetForm()" style="margin-top: 10px;">Traduzir Outro Livro</button>
+            </section>
+
+            <!-- Error Section -->
+            <section id="errorSection" class="card" style="display: none;">
+                <h2>❌ Erro</h2>
+                <p id="errorMessage"></p>
+                <button type="button" class="btn-secondary" onclick="resetForm()">Tentar Novamente</button>
+            </section>
+        </main>
+
+        <footer>
+            <p>Processamento assíncrono • Preserva estrutura original do EPUB</p>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

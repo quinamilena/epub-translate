@@ -1,0 +1,20 @@
+# Docker ignore
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.git
+.gitignore
+*.md
+.DS_Store
+backend/uploads/*
+backend/outputs/*
+backend/tmp/*
+!backend/uploads/.gitkeep
+!backend/outputs/.gitkeep
+!backend/tmp/.gitkeep
+!backend/glossaries/.gitkeep

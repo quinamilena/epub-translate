@@ -1,0 +1,160 @@
+time="2026-10-24T19:34:55-03:00" level=warning msg="C:\\Users\\Milena\\Documents\\epub-translate\\docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion"
+ Image epub-translate-backend Building 
+ Image epub-translate-frontend Building 
+#1 [internal] load local bake definitions
+#1 reading from stdin 1.03kB 0.0s done
+#1 DONE 0.0s
+
+#2 [internal] load build definition from Dockerfile.backend
+#2 transferring dockerfile: 912B 0.0s done
+#2 DONE 0.0s
+
+#3 [internal] load metadata for docker.io/library/python:3.11-slim
+#3 DONE 1.3s
+
+#4 [internal] load .dockerignore
+#4 transferring context: 305B done
+#4 DONE 0.0s
+
+#5 [1/8] FROM docker.io/library/python:3.11-slim@sha256:b7a9e5f6a93d6d4a31f129bbd4bdee69efccb6ded0fb230d78aafaf37af98377
+#5 resolve docker.io/library/python:3.11-slim@sha256:b7a9e5f6a93d6d4a31f129bbd4bdee69efccb6ded0fb230d78aafaf37af98377 0.0s done
+#5 DONE 0.0s
+
+#6 [2/8] WORKDIR /app
+#6 CACHED
+
+#7 [3/8] RUN apt-get update && apt-get install -y     gcc     g++     libxml2-dev     libxslt1-dev     curl     default-jre     && rm -rf /var/lib/apt/lists/*
+#7 ...
+
+#8 [internal] load build context
+#8 transferring context: 31.21kB 0.0s done
+#8 DONE 0.0s
+
+#7 [3/8] RUN apt-get update && apt-get install -y     gcc     g++     libxml2-dev     libxslt1-dev     curl     default-jre     && rm -rf /var/lib/apt/lists/*
+#7 1.046 Hit:1 http://deb.debian.org/debian trixie InRelease
+#7 1.190 Get:2 http://deb.debian.org/debian trixie-updates InRelease [47.3 kB]
+#7 1.506 Get:3 http://deb.debian.org/debian-security trixie-security InRelease [43.4 kB]
+#7 1.779 Get:4 http://deb.debian.org/debian trixie/main amd64 Packages [9678 kB]
+#7 21.65 Get:5 http://deb.debian.org/debian trixie-updates/main amd64 Packages [720 B]
+#7 21.81 Get:6 http://deb.debian.org/debian-security trixie-security/main amd64 Packages [270 kB]
+#7 23.09 Fetched 10.0 MB in 14s (733 kB/s)
+#7 23.09 Reading package lists...
+#7 24.49 Reading package lists...
+#7 25.78 Building dependency tree...
+#7 26.08 Reading state information...
+#7 26.53 The following additional packages will be installed:
+#7 26.53   adwaita-icon-theme alsa-topology-conf alsa-ucm-conf at-spi2-common
+#7 26.53   at-spi2-core bash-completion binutils binutils-common
+#7 26.53   binutils-x86-64-linux-gnu ca-certificates-java cpp cpp-14
+#7 26.53   cpp-14-x86-64-linux-gnu cpp-x86-64-linux-gnu dbus dbus-bin dbus-daemon
+#7 26.53   dbus-session-bus-common dbus-system-bus-common dbus-user-session
+#7 26.53   dconf-gsettings-backend dconf-service default-jre-headless dmsetup
+#7 26.53   fontconfig fontconfig-config fonts-dejavu-core fonts-dejavu-extra
+#7 26.53   fonts-dejavu-mono g++-14 g++-14-x86-64-linux-gnu g++-x86-64-linux-gnu gcc-14
+#7 26.53   gcc-14-x86-64-linux-gnu gcc-x86-64-linux-gnu gsettings-desktop-schemas
+#7 26.53   gtk-update-icon-cache hicolor-icon-theme java-common krb5-locales
+#7 26.53   libapparmor1 libasan8 libasound2-data libasound2t64 libatk-bridge2.0-0t64
+#7 26.53   libatk-wrapper-java libatk-wrapper-java-jni libatk1.0-0t64 libatomic1
+#7 26.53   libatspi2.0-0t64 libavahi-client3 libavahi-common-data libavahi-common3
+#7 26.53   libbinutils libbrotli1 libc-dev-bin libc6-dev libcairo-gobject2 libcairo2
+#7 26.53   libcc1-0 libcloudproviders0 libcolord2 libcom-err2 libcrypt-dev
+#7 26.53   libcryptsetup12 libctf-nobfd0 libctf0 libcups2t64 libcurl4t64 libdatrie1
+#7 26.53   libdav1d7 libdbus-1-3 libdconf1 libdeflate0 libdevmapper1.02.1
+#7 26.53   libdrm-amdgpu1 libdrm-common libdrm-intel1 libdrm2 libedit2 libelf1t64
+#7 26.53   libepoxy0 libexpat1 libfontconfig1 libfreetype6 libfribidi0 libgbm1
+#7 26.53   libgcc-14-dev libgcrypt20 libgdk-pixbuf-2.0-0 libgdk-pixbuf2.0-bin
+#7 26.53   libgdk-pixbuf2.0-common libgif7 libgl1 libgl1-mesa-dri libglib2.0-0t64
+#7 26.53   libglib2.0-data libglvnd0 libglx-mesa0 libglx0 libgnutls30t64 libgomp1
+#7 26.53   libgpg-error-l10n libgpg-error0 libgprofng0 libgraphite2-3 libgssapi-krb5-2
+#7 26.53   libgtk-3-0t64 libgtk-3-bin libgtk-3-common libharfbuzz0b libhwasan0 libice6
+#7 26.53   libidn2-0 libisl23 libitm1 libjansson4 libjbig0 libjpeg62-turbo libjson-c5
+#7 26.53   libk5crypto3 libkeyutils1 libkmod2 libkrb5-3 libkrb5support0 liblcms2-2
+#7 26.53   libldap-common libldap2 liblerc4 libllvm19 liblsan0 libmpc3 libmpfr6
+#7 26.53   libnghttp2-14 libnghttp3-9 libnspr4 libnss-systemd libnss3 libp11-kit0
+#7 26.53   libpam-systemd libpango-1.0-0 libpangocairo-1.0-0 libpangoft2-1.0-0
+#7 26.54   libpciaccess0 libpcsclite1 libpixman-1-0 libpng16-16t64 libproc2-0
+#7 26.54   libpsl5t64 libquadmath0 librsvg2-2 librsvg2-common librtmp1 libsasl2-2
+#7 26.54   libsasl2-modules libsasl2-modules-db libsensors-config libsensors5
+#7 26.54   libsframe1 libsharpyuv0 libsm6 libssh2-1t64 libstdc++-14-dev
+#7 26.54   libsystemd-shared libtasn1-6 libthai-data libthai0 libtiff6 libtsan2
+#7 26.54   libubsan1 libunistring5 libvulkan1 libwayland-client0 libwayland-cursor0
+#7 26.54   libwayland-egl1 libwayland-server0 libwebp7 libx11-6 libx11-data libx11-xcb1
+#7 26.54   libxau6 libxaw7 libxcb-dri3-0 libxcb-glx0 libxcb-present0 libxcb-randr0
+#7 26.54   libxcb-render0 libxcb-shape0 libxcb-shm0 libxcb-sync1 libxcb-xfixes0 libxcb1
+#7 26.54   libxcomposite1 libxcursor1 libxdamage1 libxdmcp6 libxext6 libxfixes3 libxft2
+#7 26.54   libxi6 libxinerama1 libxkbcommon0 libxkbfile1 libxml2 libxmu6 libxmuu1
+#7 26.54   libxpm4 libxrandr2 libxrender1 libxshmfence1 libxslt1.1 libxt6t64 libxtst6
+#7 26.54   libxv1 libxxf86dga1 libxxf86vm1 libz3-4 linux-libc-dev linux-sysctl-defaults
+#7 26.54   luit manpages manpages-dev mesa-libgallium mesa-vulkan-drivers
+#7 26.54   openjdk-21-jre openjdk-21-jre-headless procps psmisc publicsuffix
+#7 26.54   rpcsvc-proto shared-mime-info systemd systemd-cryptsetup systemd-sysv
+#7 26.54   systemd-timesyncd x11-common x11-utils xdg-user-dirs xkb-data
+#7 26.54 Suggested packages:
+#7 26.54   adwaita-icon-theme-legacy binutils-doc gprofng-gui binutils-gold cpp-doc
+#7 26.54   gcc-14-locales cpp-14-doc g++-multilib g++-14-multilib gcc-14-doc
+#7 26.54   gcc-multilib make autoconf automake libtool flex bison gdb gcc-doc
+#7 26.54   gcc-14-multilib gdb-x86-64-linux-gnu alsa-utils libasound2-plugins
+#7 26.54   libc-devtools glibc-doc colord cups-common rng-tools low-memory-monitor
+#7 26.54   gnutls-bin krb5-doc krb5-user gvfs liblcms2-utils libtss2-rc0t64 pciutils
+#7 26.54   pcscd librsvg2-bin libsasl2-modules-gssapi-mit
+#7 26.54   | libsasl2-modules-gssapi-heimdal libsasl2-modules-ldap libsasl2-modules-otp
+#7 26.54   libsasl2-modules-sql lm-sensors libstdc++-14-doc libarchive13t64 libbpf1
+#7 26.54   libdw1t64 libfido2-1 libip4tc2 libpwquality1 libqrencode4 pkg-config
+#7 26.54   man-browser libnss-mdns fonts-ipafont-gothic fonts-ipafont-mincho
+#7 26.54   fonts-wqy-microhei | fonts-wqy-zenhei fonts-indic systemd-container
+#7 26.54   systemd-homed systemd-userdbd systemd-boot systemd-resolved systemd-repart
+#7 26.54   libtss2-tcti-device0 polkitd mesa-utils
+#7 28.14 The following NEW packages will be installed:
+#7 28.14   adwaita-icon-theme alsa-topology-conf alsa-ucm-conf at-spi2-common
+#7 28.14   at-spi2-core bash-completion binutils binutils-common
+#7 28.14   binutils-x86-64-linux-gnu ca-certificates-java cpp cpp-14
+#7 28.14   cpp-14-x86-64-linux-gnu cpp-x86-64-linux-gnu curl dbus dbus-bin dbus-daemon
+#7 28.14   dbus-session-bus-common dbus-system-bus-common dbus-user-session
+#7 28.14   dconf-gsettings-backend dconf-service default-jre default-jre-headless
+#7 28.14   dmsetup fontconfig fontconfig-config fonts-dejavu-core fonts-dejavu-extra
+#7 28.14   fonts-dejavu-mono g++ g++-14 g++-14-x86-64-linux-gnu g++-x86-64-linux-gnu
+#7 28.14   gcc gcc-14 gcc-14-x86-64-linux-gnu gcc-x86-64-linux-gnu
+#7 28.14   gsettings-desktop-schemas gtk-update-icon-cache hicolor-icon-theme
+#7 28.14   java-common krb5-locales libapparmor1 libasan8 libasound2-data libasound2t64
+#7 28.14   libatk-bridge2.0-0t64 libatk-wrapper-java libatk-wrapper-java-jni
+#7 28.14   libatk1.0-0t64 libatomic1 libatspi2.0-0t64 libavahi-client3
+#7 28.14   libavahi-common-data libavahi-common3 libbinutils libbrotli1 libc-dev-bin
+#7 28.14   libc6-dev libcairo-gobject2 libcairo2 libcc1-0 libcloudproviders0 libcolord2
+#7 28.14   libcom-err2 libcrypt-dev libcryptsetup12 libctf-nobfd0 libctf0 libcups2t64
+#7 28.14   libcurl4t64 libdatrie1 libdav1d7 libdbus-1-3 libdconf1 libdeflate0
+#7 28.14   libdevmapper1.02.1 libdrm-amdgpu1 libdrm-common libdrm-intel1 libdrm2
+#7 28.14   libedit2 libelf1t64 libepoxy0 libexpat1 libfontconfig1 libfreetype6
+#7 28.14   libfribidi0 libgbm1 libgcc-14-dev libgcrypt20 libgdk-pixbuf-2.0-0
+#7 28.14   libgdk-pixbuf2.0-bin libgdk-pixbuf2.0-common libgif7 libgl1 libgl1-mesa-dri
+#7 28.14   libglib2.0-0t64 libglib2.0-data libglvnd0 libglx-mesa0 libglx0
+#7 28.14   libgnutls30t64 libgomp1 libgpg-error-l10n libgpg-error0 libgprofng0
+#7 28.14   libgraphite2-3 libgssapi-krb5-2 libgtk-3-0t64 libgtk-3-bin libgtk-3-common
+#7 28.14   libharfbuzz0b libhwasan0 libice6 libidn2-0 libisl23 libitm1 libjansson4
+#7 28.14   libjbig0 libjpeg62-turbo libjson-c5 libk5crypto3 libkeyutils1 libkmod2
+#7 28.14   libkrb5-3 libkrb5support0 liblcms2-2 libldap-common libldap2 liblerc4
+#7 28.14   libllvm19 liblsan0 libmpc3 libmpfr6 libnghttp2-14 libnghttp3-9 libnspr4
+#7 28.14   libnss-systemd libnss3 libp11-kit0 libpam-systemd libpango-1.0-0
+#7 28.14   libpangocairo-1.0-0 libpangoft2-1.0-0 libpciaccess0 libpcsclite1
+#7 28.14   libpixman-1-0 libpng16-16t64 libproc2-0 libpsl5t64 libquadmath0 librsvg2-2
+#7 28.14   librsvg2-common librtmp1 libsasl2-2 libsasl2-modules libsasl2-modules-db
+#7 28.14   libsensors-config libsensors5 libsframe1 libsharpyuv0 libsm6 libssh2-1t64
+#7 28.14   libstdc++-14-dev libsystemd-shared libtasn1-6 libthai-data libthai0 libtiff6
+#7 28.14   libtsan2 libubsan1 libunistring5 libvulkan1 libwayland-client0
+#7 28.14   libwayland-cursor0 libwayland-egl1 libwayland-server0 libwebp7 libx11-6
+#7 28.14   libx11-data libx11-xcb1 libxau6 libxaw7 libxcb-dri3-0 libxcb-glx0
+#7 28.14   libxcb-present0 libxcb-randr0 libxcb-render0 libxcb-shape0 libxcb-shm0
+#7 28.14   libxcb-sync1 libxcb-xfixes0 libxcb1 libxcomposite1 libxcursor1 libxdamage1
+#7 28.14   libxdmcp6 libxext6 libxfixes3 libxft2 libxi6 libxinerama1 libxkbcommon0
+#7 28.14   libxkbfile1 libxml2 libxml2-dev libxmu6 libxmuu1 libxpm4 libxrandr2
+#7 28.14   libxrender1 libxshmfence1 libxslt1-dev libxslt1.1 libxt6t64 libxtst6 libxv1
+#7 28.14   libxxf86dga1 libxxf86vm1 libz3-4 linux-libc-dev linux-sysctl-defaults luit
+#7 28.14   manpages manpages-dev mesa-libgallium mesa-vulkan-drivers openjdk-21-jre
+#7 28.14   openjdk-21-jre-headless procps psmisc publicsuffix rpcsvc-proto
+#7 28.14   shared-mime-info systemd systemd-cryptsetup systemd-sysv systemd-timesyncd
+#7 28.14   x11-common x11-utils xdg-user-dirs xkb-data
+#7 28.69 0 upgraded, 245 newly installed, 0 to remove and 1 not upgraded.
+#7 28.69 Need to get 227 MB of archives.
+#7 28.69 After this operation, 982 MB of additional disk space will be used.
+#7 28.69 Get:1 http://deb.debian.org/debian trixie/main amd64 libsystemd-shared amd64 257.13-1~deb13u1 [2155 kB]
+#7 25.79 Get:2 http://deb.debian.org/debian trixie/main amd64 libapparmor1 amd64 4.1.0-1 [43.7 kB]
+#7 25.98 Get:3 http://deb.debian.org/debian trixie/main amd64 systemd amd64 257.13-1~deb13u1 [3094 kB]
