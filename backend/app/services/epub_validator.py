@@ -48,10 +48,14 @@ class EpubValidator:
             errors = []
             warnings = []
             for line in output.split('\n'):
-                if 'ERROR' in line.upper():
-                    errors.append(line.strip())
-                elif 'WARNING' in line.upper():
-                    warnings.append(line.strip())
+                stripped = line.strip()
+                # Ignorar resumo e rodapé ("Messages: 0 fatals / 0 errors ...")
+                if not stripped or stripped.startswith(('Messages:', 'Check finished', 'No errors')):
+                    continue
+                if 'ERROR' in stripped.upper():
+                    errors.append(stripped)
+                elif 'WARNING' in stripped.upper():
+                    warnings.append(stripped)
             
             return {
                 "valid": result.returncode == 0,

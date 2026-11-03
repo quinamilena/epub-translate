@@ -11,8 +11,12 @@ class TranslateRequest(BaseModel):
 
 class JobStatus(BaseModel):
     job_id: str
-    status: str  # pending, extracting, translating, rebuilding, done, error
+    status: str  # queued, extracting, translating, rebuilding, validating, done, error, paused, cancelled
     progress: int = 0
     message: Optional[str] = None
     download_url: Optional[str] = None
     filename: Optional[str] = None
+    total_chapters: int = 0
+    done_chapters: int = 0
+    total_blocks: int = 0
+    done_blocks: int = 0

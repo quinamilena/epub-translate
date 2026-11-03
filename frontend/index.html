@@ -45,7 +45,7 @@
                         </div>
                         <div class="form-group">
                             <label for="model">Modelo</label>
-                            <input type="text" id="model" name="model" value="translategemma:4b" placeholder="translategemma:4b">
+                            <input type="text" id="model" name="model" value="qwen2.5:7b-instruct" placeholder="qwen2.5:7b-instruct">
                         </div>
                         <div class="form-group">
                             <label for="baseUrl">Ollama URL</label>
@@ -70,6 +70,11 @@
                         <div class="progress-bar" id="progressBar" style="width: 0%"></div>
                     </div>
                     <p class="progress-percent" id="progressPercent">0%</p>
+                    <p class="progress-stats" id="progressStats"></p>
+                    <div class="actions">
+                        <button type="button" class="btn-secondary" id="cancelBtn" onclick="cancelJob()">Cancelar</button>
+                        <button type="button" class="btn-primary" id="resumeBtn" onclick="resumeJob()" style="display: none;">Retomar tradução</button>
+                    </div>
                 </div>
             </section>
 
@@ -77,15 +82,22 @@
             <section id="resultSection" class="card" style="display: none;">
                 <h2>✅ Tradução Concluída!</h2>
                 <p>Seu livro foi traduzido com sucesso preservando capítulos, sumário, imagens e formatação.</p>
+                <p id="resultSummary" class="progress-stats"></p>
                 <a id="downloadLink" href="#" class="btn-primary" download>Baixar EPUB Traduzido</a>
-                <button type="button" class="btn-secondary" onclick="resetForm()" style="margin-top: 10px;">Traduzir Outro Livro</button>
+                <div class="actions">
+                    <button type="button" class="btn-secondary" id="resultResumeBtn" onclick="resumeJob()" style="display: none;">Retomar pendentes</button>
+                    <button type="button" class="btn-secondary" onclick="resetForm()">Traduzir Outro Livro</button>
+                </div>
             </section>
 
             <!-- Error Section -->
             <section id="errorSection" class="card" style="display: none;">
                 <h2>❌ Erro</h2>
                 <p id="errorMessage"></p>
-                <button type="button" class="btn-secondary" onclick="resetForm()">Tentar Novamente</button>
+                <div class="actions">
+                    <button type="button" class="btn-primary" id="errorResumeBtn" onclick="resumeJob()" style="display: none;">Retomar tradução</button>
+                    <button type="button" class="btn-secondary" onclick="resetForm()">Tentar Novamente</button>
+                </div>
             </section>
         </main>
 

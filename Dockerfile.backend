@@ -20,7 +20,21 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/ .
 
 # Criar diretórios
-RUN mkdir -p uploads outputs tmp glossaries
+RUN mkdir -p uploads outputs tmp glossaries data
+
+# Instalar epubcheck (validação de EPUB)
+ENV EPUBCHECK_VERSION=5.2.1
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        default-jre-headless \
+        unzip \
+    && curl -fsSL -o /tmp/epubcheck.zip \
+        "https://github.com/w3c/epubcheck/releases/download/v${EPUBCHECK_VERSION}/epubcheck-${EPUBCHECK_VERSION}.zip" \
+    && unzip -q /tmp/epubcheck.zip -d /opt \
+    && rm -f /tmp/epubcheck.zip \
+    && printf '#!/bin/sh\nexec java -jar /opt/epubcheck-%s/epubcheck.jar "$@"\n' "${EPUBCHECK_VERSION}" > /usr/local/bin/epubcheck \
+    && chmod +x /usr/local/bin/epubcheck \
+    && epubcheck --version \
+    && rm -rf /var/lib/apt/lists/*
 
 # Expor porta
 EXPOSE 8000
