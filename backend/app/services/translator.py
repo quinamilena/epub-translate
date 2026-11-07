@@ -24,7 +24,11 @@ class Translator:
             texts_to_translate.append(self.glossary_manager.apply_glossary(t, self.glossary))
         
         # Prompt para tradução PT-BR mantendo formatação/contexto
-        system_prompt = """Você é um tradutor profissional especializado em tradução literária do inglês para português do Brasil.
+        if self.provider == "ollama" and "translategemma" in self.model:
+            system_prompt = "You are a professional translator. Translate English to Brazilian Portuguese. Return only the translated text, one per line in the same order, without explanations or notes."
+            user_prompt = "\n===SEPARATOR===\n".join(texts_to_translate)
+        else:
+            system_prompt = """Você é um tradutor profissional especializado em tradução literária do inglês para português do Brasil.
 Regras:
 - Traduza com naturalidade, mantendo o tom e estilo originais
 - Preserve nomes próprios, termos técnicos quando não houver tradução consagrada
@@ -33,7 +37,7 @@ Regras:
 - Retorne APENAS o texto traduzido, um por linha na mesma ordem
 - Preserve pontuação e estrutura quando possível"""
 
-        user_prompt = f"Contexto: {context}\n\nTraduza os seguintes textos:\n\n" + "\n===SEPARATOR===\n".join(texts_to_translate)
+            user_prompt = f"Contexto: {context}\n\nTraduza os seguintes textos:\n\n" + "\n===SEPARATOR===\n".join(texts_to_translate)
         
         if self.provider == "openai":
             result = await self._translate_openai(system_prompt, user_prompt, texts_to_translate)
@@ -95,14 +99,21 @@ Regras:
                             {"role": "user", "content": user_prompt}
                         ],
                         "stream": False,
-                        "options": {"temperature": 0.3}
+                        "options": {"temperature": 0.1}
                     }
                 )
-                content = response.json()["message"]["content"]
+                data = response.json()
+                if "message" in data and "content" in data["message"]:
+                    content = data["message"]["content"]
+                elif "response" in data:
+                    content = data["response"]
+                else:
+                    print(f"Ollama unexpected response: {data}")
+                    return texts
                 translated = content.split("\n===SEPARATOR===\n")
                 if len(translated) == len(texts):
                     return [t.strip() for t in translated]
-                lines = [l.strip() for l in content.split("\n") if l.strip()]
+                lines = [l.strip() for l in content.split("\n") if l.strip() and l.strip() != "==="]
                 if len(lines) == len(texts):
                     return lines
                 return texts
