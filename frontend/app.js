@@ -15,6 +15,12 @@ const progressMessage = document.getElementById('progressMessage');
 const downloadLink = document.getElementById('downloadLink');
 const errorMessage = document.getElementById('errorMessage');
 const submitBtn = document.getElementById('submitBtn');
+const progressStats = document.getElementById('progressStats');
+const cancelBtn = document.getElementById('cancelBtn');
+const resumeBtn = document.getElementById('resumeBtn');
+const errorResumeBtn = document.getElementById('errorResumeBtn');
+const resultResumeBtn = document.getElementById('resultResumeBtn');
+const resultSummary = document.getElementById('resultSummary');
 
 let currentJobId = null;
 let pollInterval = null;
@@ -110,22 +116,62 @@ uploadForm.addEventListener('submit', async (e) => {
     }
 });
 
+function setRunningUI() {
+    cancelBtn.disabled = false;
+    cancelBtn.textContent = 'Cancelar';
+    cancelBtn.style.display = 'inline-block';
+    resumeBtn.style.display = 'none';
+    errorResumeBtn.style.display = 'none';
+    resultResumeBtn.style.display = 'none';
+}
+
+function updateStats(data) {
+    const totalBlocks = data.total_blocks || 0;
+    const doneBlocks = data.done_blocks || 0;
+    const totalChapters = data.total_chapters || 0;
+    const doneChapters = data.done_chapters || 0;
+
+    if (!totalBlocks && !totalChapters) {
+        progressStats.textContent = '';
+        return;
+    }
+
+    progressStats.textContent =
+        `Capítulos: ${doneChapters}/${totalChapters} • Blocos: ${doneBlocks}/${totalBlocks}`;
+}
+
 function startPolling() {
     if (pollInterval) clearInterval(pollInterval);
-    
+    setRunningUI();
+
     pollInterval = setInterval(async () => {
         try {
             const response = await fetch(`${API_URL}/status/${currentJobId}`);
             const data = await response.json();
-            
+
             progressBar.style.width = data.progress + '%';
             progressPercent.textContent = data.progress + '%';
-            progressMessage.textContent = data.message;
-            
+            progressMessage.textContent = data.message || '';
+            updateStats(data);
+
             if (data.status === 'done') {
                 clearInterval(pollInterval);
                 progressSection.style.display = 'none';
                 resultSection.style.display = 'block';
+
+                const total = data.total_blocks || 0;
+                const done = data.done_blocks || 0;
+                const pending = Math.max(total - done, 0);
+
+                resultSummary.textContent = total
+                    ? `Blocos traduzidos: ${done}/${total}` +
+                      (pending ? ` • ${pending} pendente(s)` : '')
+                    : '';
+                resultResumeBtn.style.display = pending ? 'inline-block' : 'none';
+                if (pending) {
+                    resultResumeBtn.textContent = `Retomar ${pending} bloco(s)`;
+                }
+
                 let downloadUrl = data.download_url || '';
                 if (downloadUrl.startsWith('/api/')) {
                     downloadUrl = downloadUrl.replace('/api', '');
@@ -133,7 +179,18 @@ function startPolling() {
                 downloadLink.href = `${API_URL}${downloadUrl}`;
             } else if (data.status === 'error') {
                 clearInterval(pollInterval);
-                showError(data.message);
+                showError(data.message, true, data.translator_errors);
+            } else if (data.status === 'paused' || data.status === 'cancelled') {
+                clearInterval(pollInterval);
+                progressSection.style.display = 'block';
+                resultSection.style.display = 'none';
+                errorSection.style.display = 'none';
+                cancelBtn.style.display = 'none';
+                resumeBtn.style.display = 'inline-block';
+                progressMessage.textContent = data.message ||
+                    (data.status === 'cancelled'
+                        ? 'Tradução cancelada. Você pode retomar.'
+                        : 'Tradução pausada. Você pode retomar.');
             }
         } catch (error) {
             console.error('Polling error:', error);
@@ -141,30 +198,102 @@ function startPolling() {
     }, 1000);
 }
 
-function showError(message) {
+async function cancelJob() {
+    if (!currentJobId) return;
+
+    cancelBtn.disabled = true;
+    cancelBtn.textContent = 'Cancelando...';
+
+    try {
+        const response = await fetch(`${API_URL}/jobs/${currentJobId}/cancel`, {
+            method: 'POST'
+        });
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Erro ao cancelar');
+        }
+        progressMessage.textContent =
+            'Cancelamento solicitado. Aguardando o lote atual terminar...';
+    } catch (error) {
+        cancelBtn.disabled = false;
+        cancelBtn.textContent = 'Cancelar';
+        alert(error.message);
+    }
+}
+
+async function resumeJob() {
+    if (!currentJobId) return;
+
+    const formData = new FormData();
+    formData.append('apiKey', document.getElementById('apiKey').value || '');
+
+    resumeBtn.disabled = true;
+    errorResumeBtn.disabled = true;
+    resultResumeBtn.disabled = true;
+
+    try {
+        const response = await fetch(`${API_URL}/jobs/${currentJobId}/resume`, {
+            method: 'POST',
+            body: formData
+        });
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Erro ao retomar');
+        }
+
+        uploadSection.style.display = 'none';
+        errorSection.style.display = 'none';
+        resultSection.style.display = 'none';
+        progressSection.style.display = 'block';
+        progressMessage.textContent = 'Retomando tradução...';
+        startPolling();
+    } catch (error) {
+        alert(error.message);
+    } finally {
+        resumeBtn.disabled = false;
+        errorResumeBtn.disabled = false;
+        resultResumeBtn.disabled = false;
+    }
+}
+
+function showError(message, canResume = false, details = null) {
     progressSection.style.display = 'none';
     resultSection.style.display = 'none';
     uploadSection.style.display = 'none';
     errorSection.style.display = 'block';
-    errorMessage.textContent = message;
+
+    let text = message || 'Erro inesperado';
+    if (Array.isArray(details) && details.length) {
+        text += '\n\n' + details.slice(0, 5).join('\n');
+    }
+    errorMessage.textContent = text;
+    errorResumeBtn.style.display =
+        canResume && currentJobId ? 'inline-block' : 'none';
     submitBtn.disabled = false;
     submitBtn.textContent = 'Traduzir Livro';
 }
 
 function resetForm() {
     if (pollInterval) clearInterval(pollInterval);
-    
+    currentJobId = null;
+
     uploadForm.reset();
     removeFile();
     document.getElementById('provider').value = 'ollama';
-    document.getElementById('model').value = 'translategemma:4b';
+    document.getElementById('model').value = 'qwen2.5:7b-instruct';
     document.getElementById('baseUrl').value = 'http://localhost:11434';
-    
+
     uploadSection.style.display = 'block';
     progressSection.style.display = 'none';
     resultSection.style.display = 'none';
     errorSection.style.display = 'none';
-    
+    progressStats.textContent = '';
+
+    cancelBtn.style.display = 'inline-block';
+    resumeBtn.style.display = 'none';
+    errorResumeBtn.style.display = 'none';
+    resultResumeBtn.style.display = 'none';
+
     submitBtn.disabled = false;
     submitBtn.textContent = 'Traduzir Livro';
 }

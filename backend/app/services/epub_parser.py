@@ -7,6 +7,23 @@ from ebooklib import epub
 from bs4 import BeautifulSoup
 
 
+# Atributo temporário usado para localizar cada bloco de forma única
+MARKER_ATTR = "data-tr-idx"
+
+# Versão do algoritmo de extração. Muda se a extração deixar de ser
+# determinística; jobs antigos não podem ser retomados se isso divergir.
+PARSER_VERSION = 1
+
+# Tags cujo texto é traduzido
+TRANSLATABLE_TAGS = ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'td', 'th', 'blockquote', 'figcaption']
+
+
+def read_zip_entry(epub_path: str, file_name: str) -> bytes:
+    """Lê um documento diretamente do ZIP, sem carregar o livro inteiro."""
+    with zipfile.ZipFile(epub_path) as archive:
+        return archive.read(file_name)
+
+
 class EpubParser:
     def __init__(self, upload_dir: str = "./uploads", temp_dir: str = "./tmp"):
         self.upload_dir = Path(upload_dir)
@@ -104,14 +121,29 @@ class EpubParser:
             tag.decompose()
         
         # Blocos translatáveis
-        for i, tag in enumerate(soup.find_all(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'td', 'th', 'blockquote', 'figcaption'])):
+        for i, tag in enumerate(soup.find_all(TRANSLATABLE_TAGS)):
+            # Quando um bloco contém outro bloco translatável (ex.:
+            # <blockquote><p>), apenas o interno é traduzido. Sem isso, aplicar
+            # a tradução no bloco externo destruiria os marcadores dos filhos e
+            # as traduções deles seriam perdidas silenciosamente.
+            if tag.find(TRANSLATABLE_TAGS):
+                continue
             text = tag.get_text(strip=True)
             if text and len(text) > 2:
+                # Marcador único: sem isso, tags com os mesmos atributos
+                # são resolvidas sempre para o primeiro elemento do documento
+                marker = f"tr-{i}"
+                tag[MARKER_ATTR] = marker
                 blocks.append({
                     "index": i,
                     "tag": tag.name,
                     "original": str(tag),
                     "text": text,
-                    "attrs": dict(tag.attrs)
+                    "attrs": {MARKER_ATTR: marker}
                 })
         return blocks, soup
+
+    def strip_markers(self, soup: BeautifulSoup) -> None:
+        """Remove os marcadores internos antes de serializar o XHTML."""
+        for tag in soup.find_all(attrs={MARKER_ATTR: True}):
+            del tag[MARKER_ATTR]

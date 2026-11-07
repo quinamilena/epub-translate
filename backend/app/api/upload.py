@@ -15,7 +15,7 @@ async def upload_epub(
     file: UploadFile = File(...),
     provider: str = Form(None),
     model: str = Form(None),
-    api_key: str = Form(None),
+    api_key: str = Form(None, alias="apiKey"),
     baseUrl: str = Form(None),
 ):
     if not file.filename.endswith('.epub'):
@@ -55,6 +55,30 @@ async def upload_epub(
 def get_status(job_id: str):
     job = job_manager.get_job(job_id)
     return job
+
+
+@router.get("/jobs")
+def list_jobs():
+    return {"jobs": job_manager.list_jobs()}
+
+
+@router.post("/jobs/{job_id}/resume")
+async def resume_job(
+    job_id: str,
+    background_tasks: BackgroundTasks,
+    api_key: str = Form(None, alias="apiKey"),
+):
+    if not job_manager.exists(job_id):
+        raise HTTPException(status_code=404, detail="Job não encontrado")
+    background_tasks.add_task(job_manager.resume, job_id, api_key)
+    return {"job_id": job_id, "status": "resuming"}
+
+
+@router.post("/jobs/{job_id}/cancel")
+def cancel_job(job_id: str):
+    if not job_manager.cancel_job(job_id):
+        raise HTTPException(status_code=404, detail="Job não encontrado")
+    return {"job_id": job_id, "status": "cancelling"}
 
 
 @router.get("/download/{filename}")

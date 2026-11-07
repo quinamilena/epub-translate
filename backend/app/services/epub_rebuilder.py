@@ -11,6 +11,27 @@ class EpubRebuilder:
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
     
+    def _head_info(self, content: bytes) -> Dict[str, Any]:
+        """Extrai título e links de CSS do <head>, que o ebooklib descarta."""
+        soup = BeautifulSoup(content, 'lxml')
+
+        title_tag = soup.find('title')
+        title = title_tag.get_text(strip=True) if title_tag else None
+
+        links = []
+        for tag in soup.find_all('link', href=True):
+            rel = tag.get('rel') or []
+            if isinstance(rel, str):
+                rel = [rel]
+            if 'stylesheet' in [r.lower() for r in rel]:
+                links.append({
+                    'href': tag['href'],
+                    'rel': 'stylesheet',
+                    'type': tag.get('type') or 'text/css'
+                })
+
+        return {'title': title, 'links': links}
+
     def rebuild(self, original_book: epub.EpubBook, translated_items: Dict[str, str], new_title: str = None) -> str:
         # Criar novo livro
         new_book = epub.EpubBook()
@@ -85,12 +106,18 @@ class EpubRebuilder:
                     soup = BeautifulSoup(content, 'lxml')
                     content = str(soup).encode('utf-8')
                 
+                info = self._head_info(content)
                 new_item = epub.EpubHtml(
                     uid=item.get_id(),
                     file_name=file_name,
                     lang='pt-BR',
+                    title=info.get('title') or new_title or 'Livro Traduzido',
                     content=content
                 )
+                # O ebooklib descarta o <head> original ao remontar o documento,
+                # então é preciso repassar os links de CSS para não perder o estilo
+                for link in info.get('links', []):
+                    new_item.add_link(**link)
                 new_book.add_item(new_item)
                 spine_items.append(new_item)
         

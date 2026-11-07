@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# Ambiente e segredos
+.env
+backend/.env
+.env.*
+!.env.example
+!backend/.env.example
+
+# Dados gerados em execução
+backend/uploads/*
+!backend/uploads/.gitkeep
+backend/outputs/*
+!backend/outputs/.gitkeep
+backend/tmp/*
+!backend/tmp/.gitkeep
+backend/glossaries/*
+!backend/glossaries/.gitkeep
+backend/data/*
+!backend/data/.gitkeep
+
+# Logs e arquivos temporários
+*.log
+docker_build.log
+docker_status.txt
+
+# IDE / sistema
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

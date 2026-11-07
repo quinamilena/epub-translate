@@ -250,6 +250,25 @@ header p {
     font-size: 1.2em;
 }
 
+.progress-stats {
+    color: #555;
+    margin-top: 10px;
+    font-size: 0.95em;
+}
+
+.actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+    flex-wrap: wrap;
+}
+
+.actions .btn-primary,
+.actions .btn-secondary {
+    flex: 1 1 180px;
+    width: auto;
+}
+
 #errorMessage {
     color: #ff4757;
     background: #ffe0e0;
@@ -257,6 +276,7 @@ header p {
     border-radius: 6px;
     margin-bottom: 15px;
     word-break: break-word;
+    white-space: pre-line;
 }
 
 footer {

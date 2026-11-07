@@ -30,10 +30,11 @@ services:
       - ./backend/outputs:/app/outputs
       - ./backend/tmp:/app/tmp
       - ./backend/glossaries:/app/glossaries
+      - ./backend/data:/app/data
       - ./backend/.env:/app/.env
     environment:
       - TRANSLATION_PROVIDER=ollama
-      - TRANSLATION_MODEL=llama3.1
+      - TRANSLATION_MODEL=translategemma:4b
       - TRANSLATION_BASE_URL=http://ollama:11434
       - API_HOST=0.0.0.0
       - API_PORT=8000
