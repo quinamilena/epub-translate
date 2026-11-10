@@ -21,9 +21,73 @@ const resumeBtn = document.getElementById('resumeBtn');
 const errorResumeBtn = document.getElementById('errorResumeBtn');
 const resultResumeBtn = document.getElementById('resultResumeBtn');
 const resultSummary = document.getElementById('resultSummary');
+const tabTranslate = document.getElementById('tabTranslate');
+const tabJobs = document.getElementById('tabJobs');
+const jobsSection = document.getElementById('jobsSection');
+const jobsList = document.getElementById('jobsList');
+const jobsEmpty = document.getElementById('jobsEmpty');
+const jobsError = document.getElementById('jobsError');
+const jobsBadge = document.getElementById('jobsBadge');
+
+const STATUS_LABELS = {
+    queued: 'Na fila',
+    extracting: 'Extraindo',
+    translating: 'Traduzindo',
+    rebuilding: 'Reconstruindo',
+    validating: 'Validando',
+    paused: 'Pausada',
+    cancelled: 'Cancelada',
+    done: 'Concluída',
+    error: 'Erro'
+};
+
+const ACTIVE_STATUSES = ['queued', 'extracting', 'translating', 'rebuilding', 'validating'];
+const RESUMABLE_STATUSES = ['paused', 'cancelled', 'error'];
 
 let currentJobId = null;
 let pollInterval = null;
+let jobsInterval = null;
+let currentTab = 'translate';
+let currentPanel = 'upload';
+
+function renderVisibility() {
+    jobsSection.style.display = currentTab === 'jobs' ? 'block' : 'none';
+
+    const panels = {
+        upload: uploadSection,
+        progress: progressSection,
+        result: resultSection,
+        error: errorSection
+    };
+
+    Object.entries(panels).forEach(([name, element]) => {
+        element.style.display =
+            currentTab === 'translate' && name === currentPanel ? 'block' : 'none';
+    });
+}
+
+function setPanel(name) {
+    currentPanel = name;
+    renderVisibility();
+}
+
+function switchTab(tab) {
+    currentTab = tab;
+
+    tabTranslate.classList.toggle('is-active', tab === 'translate');
+    tabJobs.classList.toggle('is-active', tab === 'jobs');
+    tabTranslate.setAttribute('aria-pressed', String(tab === 'translate'));
+    tabJobs.setAttribute('aria-pressed', String(tab === 'jobs'));
+
+    renderVisibility();
+
+    if (tab === 'jobs') {
+        loadJobs();
+    }
+}
+
+tabTranslate.addEventListener('click', () => switchTab('translate'));
+tabJobs.addEventListener('click', () => switchTab('jobs'));
 
 // Drag and drop
 uploadArea.addEventListener('dragover', (e) => {
@@ -102,17 +166,14 @@ uploadForm.addEventListener('submit', async (e) => {
         
         const data = await response.json();
         currentJobId = data.job_id;
-        
-        uploadSection.style.display = 'none';
-        progressSection.style.display = 'block';
-        errorSection.style.display = 'none';
-        resultSection.style.display = 'none';
-        
+
+        switchTab('translate');
+        setPanel('progress');
         startPolling();
     } catch (error) {
         showError(error.message);
         submitBtn.disabled = false;
-        submitBtn.textContent = 'Traduzir Livro';
+        submitBtn.textContent = 'Traduzir livro';
     }
 });
 
@@ -140,62 +201,74 @@ function updateStats(data) {
         `Capítulos: ${doneChapters}/${totalChapters} • Blocos: ${doneBlocks}/${totalBlocks}`;
 }
 
+function applyJobStatus(data) {
+    progressBar.style.width = data.progress + '%';
+    progressPercent.textContent = data.progress + '%';
+    progressMessage.textContent = data.message || '';
+    updateStats(data);
+
+    if (data.status === 'done') {
+        clearInterval(pollInterval);
+        pollInterval = null;
+        setPanel('result');
+
+        const total = data.total_blocks || 0;
+        const done = data.done_blocks || 0;
+        const pending = Math.max(total - done, 0);
+
+        resultSummary.textContent = total
+            ? `Blocos traduzidos: ${done}/${total}` +
+              (pending ? ` • ${pending} pendente(s)` : '')
+            : '';
+        resultResumeBtn.style.display = pending ? 'inline-block' : 'none';
+        if (pending) {
+            resultResumeBtn.textContent = `Retomar ${pending} bloco(s)`;
+        }
+
+        let downloadUrl = data.download_url || '';
+        if (downloadUrl.startsWith('/api/')) {
+            downloadUrl = downloadUrl.replace('/api', '');
+        }
+        downloadLink.href = `${API_URL}${downloadUrl}`;
+    } else if (data.status === 'error') {
+        clearInterval(pollInterval);
+        pollInterval = null;
+        showError(data.message, true, data.translator_errors);
+    } else if (data.status === 'paused' || data.status === 'cancelled') {
+        clearInterval(pollInterval);
+        pollInterval = null;
+        setPanel('progress');
+        cancelBtn.style.display = 'none';
+        resumeBtn.style.display = 'inline-block';
+        progressMessage.textContent = data.message ||
+            (data.status === 'cancelled'
+                ? 'Tradução cancelada. Você pode retomar.'
+                : 'Tradução pausada. Você pode retomar.');
+    }
+
+    if (['done', 'error', 'paused', 'cancelled'].includes(data.status)) {
+        loadJobs();
+    }
+}
+
+async function pollJobStatus() {
+    if (!currentJobId) return;
+
+    try {
+        const response = await fetch(`${API_URL}/status/${currentJobId}`);
+        const data = await response.json();
+        applyJobStatus(data);
+    } catch (error) {
+        console.error('Polling error:', error);
+    }
+}
+
 function startPolling() {
     if (pollInterval) clearInterval(pollInterval);
     setRunningUI();
 
-    pollInterval = setInterval(async () => {
-        try {
-            const response = await fetch(`${API_URL}/status/${currentJobId}`);
-            const data = await response.json();
-
-            progressBar.style.width = data.progress + '%';
-            progressPercent.textContent = data.progress + '%';
-            progressMessage.textContent = data.message || '';
-            updateStats(data);
-
-            if (data.status === 'done') {
-                clearInterval(pollInterval);
-                progressSection.style.display = 'none';
-                resultSection.style.display = 'block';
-
-                const total = data.total_blocks || 0;
-                const done = data.done_blocks || 0;
-                const pending = Math.max(total - done, 0);
-
-                resultSummary.textContent = total
-                    ? `Blocos traduzidos: ${done}/${total}` +
-                      (pending ? ` • ${pending} pendente(s)` : '')
-                    : '';
-                resultResumeBtn.style.display = pending ? 'inline-block' : 'none';
-                if (pending) {
-                    resultResumeBtn.textContent = `Retomar ${pending} bloco(s)`;
-                }
-
-                let downloadUrl = data.download_url || '';
-                if (downloadUrl.startsWith('/api/')) {
-                    downloadUrl = downloadUrl.replace('/api', '');
-                }
-                downloadLink.href = `${API_URL}${downloadUrl}`;
-            } else if (data.status === 'error') {
-                clearInterval(pollInterval);
-                showError(data.message, true, data.translator_errors);
-            } else if (data.status === 'paused' || data.status === 'cancelled') {
-                clearInterval(pollInterval);
-                progressSection.style.display = 'block';
-                resultSection.style.display = 'none';
-                errorSection.style.display = 'none';
-                cancelBtn.style.display = 'none';
-                resumeBtn.style.display = 'inline-block';
-                progressMessage.textContent = data.message ||
-                    (data.status === 'cancelled'
-                        ? 'Tradução cancelada. Você pode retomar.'
-                        : 'Tradução pausada. Você pode retomar.');
-            }
-        } catch (error) {
-            console.error('Polling error:', error);
-        }
-    }, 1000);
+    pollJobStatus();
+    pollInterval = setInterval(pollJobStatus, 1000);
 }
 
 async function cancelJob() {
@@ -214,6 +287,7 @@ async function cancelJob() {
         }
         progressMessage.textContent =
             'Cancelamento solicitado. Aguardando o lote atual terminar...';
+        loadJobs();
     } catch (error) {
         cancelBtn.disabled = false;
         cancelBtn.textContent = 'Cancelar';
@@ -221,8 +295,9 @@ async function cancelJob() {
     }
 }
 
-async function resumeJob() {
-    if (!currentJobId) return;
+async function resumeJob(jobId = currentJobId) {
+    if (!jobId) return;
+    currentJobId = jobId;
 
     const formData = new FormData();
     formData.append('apiKey', document.getElementById('apiKey').value || '');
@@ -232,7 +307,7 @@ async function resumeJob() {
     resultResumeBtn.disabled = true;
 
     try {
-        const response = await fetch(`${API_URL}/jobs/${currentJobId}/resume`, {
+        const response = await fetch(`${API_URL}/jobs/${jobId}/resume`, {
             method: 'POST',
             body: formData
         });
@@ -241,10 +316,8 @@ async function resumeJob() {
             throw new Error(error.detail || 'Erro ao retomar');
         }
 
-        uploadSection.style.display = 'none';
-        errorSection.style.display = 'none';
-        resultSection.style.display = 'none';
-        progressSection.style.display = 'block';
+        switchTab('translate');
+        setPanel('progress');
         progressMessage.textContent = 'Retomando tradução...';
         startPolling();
     } catch (error) {
@@ -257,10 +330,7 @@ async function resumeJob() {
 }
 
 function showError(message, canResume = false, details = null) {
-    progressSection.style.display = 'none';
-    resultSection.style.display = 'none';
-    uploadSection.style.display = 'none';
-    errorSection.style.display = 'block';
+    setPanel('error');
 
     let text = message || 'Erro inesperado';
     if (Array.isArray(details) && details.length) {
@@ -270,7 +340,7 @@ function showError(message, canResume = false, details = null) {
     errorResumeBtn.style.display =
         canResume && currentJobId ? 'inline-block' : 'none';
     submitBtn.disabled = false;
-    submitBtn.textContent = 'Traduzir Livro';
+    submitBtn.textContent = 'Traduzir livro';
 }
 
 function resetForm() {
@@ -283,10 +353,8 @@ function resetForm() {
     document.getElementById('model').value = 'qwen2.5:7b-instruct';
     document.getElementById('baseUrl').value = 'http://localhost:11434';
 
-    uploadSection.style.display = 'block';
-    progressSection.style.display = 'none';
-    resultSection.style.display = 'none';
-    errorSection.style.display = 'none';
+    switchTab('translate');
+    setPanel('upload');
     progressStats.textContent = '';
 
     cancelBtn.style.display = 'inline-block';
@@ -295,5 +363,187 @@ function resetForm() {
     resultResumeBtn.style.display = 'none';
 
     submitBtn.disabled = false;
-    submitBtn.textContent = 'Traduzir Livro';
+    submitBtn.textContent = 'Traduzir livro';
 }
+
+// ---------------------------------------------------------------------------
+// Lista de traduções
+// ---------------------------------------------------------------------------
+
+function isJobInProgress(job) {
+    return ACTIVE_STATUSES.includes(job.status) || job.status === 'paused';
+}
+
+function makeElement(tag, className, text) {
+    const element = document.createElement(tag);
+    if (className) element.className = className;
+    if (text !== undefined) element.textContent = text;
+    return element;
+}
+
+async function loadJobs() {
+    try {
+        const response = await fetch(`${API_URL}/jobs`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        const data = await response.json();
+        const jobs = Array.isArray(data.jobs) ? data.jobs : [];
+
+        updateJobsBadge(jobs);
+        jobsError.style.display = 'none';
+
+        if (currentTab === 'jobs') {
+            renderJobs(jobs);
+        }
+    } catch (error) {
+        console.error('Jobs error:', error);
+        jobsBadge.style.display = 'none';
+
+        if (currentTab === 'jobs') {
+            jobsList.replaceChildren();
+            jobsEmpty.style.display = 'none';
+            jobsError.textContent =
+                'Não foi possível carregar as traduções. Verifique se o backend está no ar.';
+            jobsError.style.display = 'block';
+        }
+    }
+}
+
+function updateJobsBadge(jobs) {
+    const activeCount = jobs.filter(isJobInProgress).length;
+    jobsBadge.textContent = String(activeCount);
+    jobsBadge.style.display = activeCount ? 'inline-block' : 'none';
+}
+
+function renderJobs(jobs) {
+    const ordered = [...jobs].sort((a, b) => {
+        return (isJobInProgress(a) ? 0 : 1) - (isJobInProgress(b) ? 0 : 1);
+    });
+
+    jobsList.replaceChildren();
+    jobsEmpty.style.display = ordered.length ? 'none' : 'block';
+
+    ordered.forEach(job => jobsList.appendChild(renderJob(job)));
+}
+
+function formatJobStats(job) {
+    const totalChapters = Number(job.total_chapters) || 0;
+    const doneChapters = Number(job.done_chapters) || 0;
+    const totalBlocks = Number(job.total_blocks) || 0;
+    const doneBlocks = Number(job.done_blocks) || 0;
+
+    if (!totalChapters && !totalBlocks) return '';
+
+    return `Capítulos: ${doneChapters}/${totalChapters} • Blocos: ${doneBlocks}/${totalBlocks}`;
+}
+
+function renderJob(job) {
+    const status = job.status || 'queued';
+    const card = makeElement('article', 'job');
+    if (isJobInProgress(job)) card.classList.add('job-active');
+
+    const header = makeElement('div', 'job-header');
+    header.appendChild(
+        makeElement('h3', 'job-title', job.filename || 'Arquivo sem nome')
+    );
+
+    const statusElement = makeElement(
+        'span', 'job-status', STATUS_LABELS[status] || status
+    );
+    if (STATUS_LABELS[status]) statusElement.dataset.status = status;
+    header.appendChild(statusElement);
+
+    const progress = makeElement('div', 'job-progress');
+    const progressBar = makeElement('div', 'job-progress-bar');
+    const percent = Math.max(0, Math.min(100, Number(job.progress) || 0));
+    progressBar.style.width = `${percent}%`;
+    progress.appendChild(progressBar);
+
+    const meta = makeElement('p', 'job-meta');
+    meta.textContent = [job.message, formatJobStats(job)]
+        .filter(Boolean)
+        .join(' • ');
+
+    const actions = makeElement('div', 'job-actions');
+
+    if (status === 'done' && job.download_url) {
+        let downloadUrl = job.download_url;
+        if (downloadUrl.startsWith('/api/')) {
+            downloadUrl = downloadUrl.replace('/api', '');
+        }
+        const download = makeElement('a', 'btn-secondary btn-small', 'Baixar EPUB');
+        download.href = `${API_URL}${downloadUrl}`;
+        download.download = '';
+        actions.appendChild(download);
+    }
+
+    const openLabels = {
+        done: 'Ver resultado',
+        error: 'Ver detalhes'
+    };
+    const openButton = makeElement(
+        'button',
+        'btn-secondary btn-small',
+        openLabels[status] || 'Acompanhar'
+    );
+    openButton.type = 'button';
+    openButton.addEventListener('click', () => openJob(job.job_id));
+    actions.appendChild(openButton);
+
+    const pendingBlocks = Math.max(
+        (Number(job.total_blocks) || 0) - (Number(job.done_blocks) || 0), 0
+    );
+    const canResume =
+        RESUMABLE_STATUSES.includes(status) ||
+        (status === 'done' && pendingBlocks > 0);
+
+    if (canResume) {
+        const resumeButton = makeElement(
+            'button',
+            'btn-primary btn-small',
+            status === 'done' ? `Retomar ${pendingBlocks} bloco(s)` : 'Retomar'
+        );
+        resumeButton.type = 'button';
+        resumeButton.addEventListener('click', () => resumeJob(job.job_id));
+        actions.appendChild(resumeButton);
+    }
+
+    if (ACTIVE_STATUSES.includes(status)) {
+        const cancelButton = makeElement('button', 'btn-secondary btn-small', 'Cancelar');
+        cancelButton.type = 'button';
+        cancelButton.addEventListener('click', () => cancelJobFromList(job.job_id));
+        actions.appendChild(cancelButton);
+    }
+
+    card.append(header, progress, meta);
+    if (actions.childElementCount) card.appendChild(actions);
+    return card;
+}
+
+function openJob(jobId) {
+    currentJobId = jobId;
+    switchTab('translate');
+    setPanel('progress');
+    startPolling();
+}
+
+async function cancelJobFromList(jobId) {
+    try {
+        const response = await fetch(`${API_URL}/jobs/${jobId}/cancel`, {
+            method: 'POST'
+        });
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Erro ao cancelar');
+        }
+
+        await loadJobs();
+        if (jobId === currentJobId) pollJobStatus();
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+switchTab('translate');
+loadJobs();
+jobsInterval = setInterval(loadJobs, 5000);

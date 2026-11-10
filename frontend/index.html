@@ -3,42 +3,59 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EPUB Translate - Inglês para Português BR</title>
-    <link rel="stylesheet" href="styles.css">
+    <title>EPUB Translate — Oficina de edições</title>
+    <link rel="stylesheet" href="styles.css?v=3">
 </head>
 <body>
     <div class="container">
-        <header>
-            <h1>📚 EPUB Translate</h1>
-            <p>Traduza livros EPUB do inglês para português brasileiro preservando estrutura, imagens e formatação</p>
+        <header class="masthead">
+            <p class="eyebrow">Oficina de edições · EN → PT-BR</p>
+            <h1>EPUB <em>Translate</em></h1>
+            <p class="lede">Traduza o texto. Preserve o livro: capítulos, imagens e tipografia.</p>
         </header>
+
+        <nav class="tabs" aria-label="Seções do aplicativo">
+            <button type="button" class="tab is-active" id="tabTranslate" aria-pressed="true">
+                Nova tradução
+            </button>
+            <button type="button" class="tab" id="tabJobs" aria-pressed="false">
+                Traduções <span class="tab-badge" id="jobsBadge" style="display: none;">0</span>
+            </button>
+        </nav>
 
         <main>
             <!-- Upload Section -->
             <section id="uploadSection" class="card">
-                <h2>Enviar Arquivo</h2>
+                <h2>Enviar um EPUB</h2>
+                <p class="section-note">O arquivo original não sai deste computador. A tradução roda no provedor configurado abaixo.</p>
+
                 <form id="uploadForm" enctype="multipart/form-data">
                     <div class="upload-area" id="uploadArea">
                         <input type="file" id="fileInput" name="file" accept=".epub" required>
                         <div class="upload-content">
-                            <div class="upload-icon">📁</div>
-                            <p class="upload-text">Arraste e solte seu arquivo EPUB aqui</p>
+                            <svg class="upload-icon" viewBox="0 0 64 64" fill="none" stroke="currentColor"
+                                 stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M18 8h20l10 10v32a6 6 0 0 1-6 6H18a6 6 0 0 1-6-6V14a6 6 0 0 1 6-6Z"/>
+                                <path d="M38 8v10h10"/>
+                                <path d="M23 31h16M23 39h16M23 47h10"/>
+                            </svg>
+                            <p class="upload-text">Arraste seu EPUB para cá</p>
                             <p class="upload-or">ou</p>
-                            <button type="button" class="btn-secondary" onclick="document.getElementById('fileInput').click()">Selecionar Arquivo</button>
-                            <p class="upload-hint">Máximo 50MB</p>
+                            <button type="button" class="btn-secondary" onclick="document.getElementById('fileInput').click()">Selecionar arquivo</button>
+                            <p class="upload-hint">Apenas .epub · máximo 50 MB</p>
                         </div>
                         <div class="file-selected" id="fileSelected" style="display: none;">
                             <span class="file-name" id="fileName"></span>
-                            <button type="button" class="btn-remove" onclick="removeFile()">✕</button>
+                            <button type="button" class="btn-remove" onclick="removeFile()" aria-label="Remover arquivo">✕</button>
                         </div>
                     </div>
 
                     <div class="settings">
-                        <h3>Configurações de Tradução</h3>
+                        <h3>Configurações de tradução</h3>
                         <div class="form-group">
                             <label for="provider">Provedor</label>
                             <select id="provider" name="provider">
-                                <option value="ollama" selected>Ollama (Local)</option>
+                                <option value="ollama" selected>Ollama (local)</option>
                                 <option value="openai">OpenAI</option>
                                 <option value="gemini">Google Gemini</option>
                             </select>
@@ -57,19 +74,21 @@
                         </div>
                     </div>
 
-                    <button type="submit" class="btn-primary" id="submitBtn">Traduzir Livro</button>
+                    <button type="submit" class="btn-primary btn-block" id="submitBtn">Traduzir livro</button>
                 </form>
             </section>
 
             <!-- Progress Section -->
             <section id="progressSection" class="card" style="display: none;">
-                <h2>Processando</h2>
+                <h2>Traduzindo seu livro</h2>
                 <div class="progress-info">
-                    <p id="progressMessage">Iniciando...</p>
+                    <div class="progress-top">
+                        <p id="progressMessage">Iniciando...</p>
+                        <p class="progress-percent" id="progressPercent">0%</p>
+                    </div>
                     <div class="progress-bar-container">
                         <div class="progress-bar" id="progressBar" style="width: 0%"></div>
                     </div>
-                    <p class="progress-percent" id="progressPercent">0%</p>
                     <p class="progress-stats" id="progressStats"></p>
                     <div class="actions">
                         <button type="button" class="btn-secondary" id="cancelBtn" onclick="cancelJob()">Cancelar</button>
@@ -80,32 +99,48 @@
 
             <!-- Result Section -->
             <section id="resultSection" class="card" style="display: none;">
-                <h2>✅ Tradução Concluída!</h2>
-                <p>Seu livro foi traduzido com sucesso preservando capítulos, sumário, imagens e formatação.</p>
+                <p class="eyebrow eyebrow-accent">Edição concluída</p>
+                <h2>Tradução pronta</h2>
+                <p class="section-note">O livro foi traduzido preservando capítulos, sumário, imagens e formatação.</p>
                 <p id="resultSummary" class="progress-stats"></p>
-                <a id="downloadLink" href="#" class="btn-primary" download>Baixar EPUB Traduzido</a>
+                <a id="downloadLink" href="#" class="btn-primary download-link" download>Baixar EPUB traduzido</a>
                 <div class="actions">
                     <button type="button" class="btn-secondary" id="resultResumeBtn" onclick="resumeJob()" style="display: none;">Retomar pendentes</button>
-                    <button type="button" class="btn-secondary" onclick="resetForm()">Traduzir Outro Livro</button>
+                    <button type="button" class="btn-secondary" onclick="resetForm()">Traduzir outro livro</button>
                 </div>
             </section>
 
             <!-- Error Section -->
             <section id="errorSection" class="card" style="display: none;">
-                <h2>❌ Erro</h2>
+                <p class="eyebrow eyebrow-accent">Interrupção</p>
+                <h2>Algo deu errado</h2>
                 <p id="errorMessage"></p>
                 <div class="actions">
                     <button type="button" class="btn-primary" id="errorResumeBtn" onclick="resumeJob()" style="display: none;">Retomar tradução</button>
-                    <button type="button" class="btn-secondary" onclick="resetForm()">Tentar Novamente</button>
+                    <button type="button" class="btn-secondary" onclick="resetForm()">Tentar novamente</button>
                 </div>
+            </section>
+
+            <!-- Jobs Section -->
+            <section id="jobsSection" class="card" style="display: none;">
+                <div class="jobs-header">
+                    <div>
+                        <p class="eyebrow eyebrow-accent">Histórico</p>
+                        <h2>Traduções</h2>
+                    </div>
+                    <button type="button" class="btn-secondary btn-small" onclick="loadJobs()">Atualizar</button>
+                </div>
+                <p class="jobs-empty" id="jobsEmpty" style="display: none;">Nenhuma tradução por aqui ainda. Envie um EPUB para começar.</p>
+                <p class="jobs-error" id="jobsError" style="display: none;"></p>
+                <div class="jobs-list" id="jobsList"></div>
             </section>
         </main>
 
         <footer>
-            <p>Processamento assíncrono • Preserva estrutura original do EPUB</p>
+            <p>Processamento assíncrono · Estrutura original preservada</p>
         </footer>
     </div>
 
-    <script src="app.js"></script>
+    <script src="app.js?v=3"></script>
 </body>
 </html>
