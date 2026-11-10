@@ -1,8 +1,7 @@
-import os
 import uuid
 from pathlib import Path
 from typing import Dict, Any
-from ebooklib import epub
+from ebooklib import ITEM_DOCUMENT, ITEM_NAVIGATION, epub
 from bs4 import BeautifulSoup
 
 
@@ -42,50 +41,28 @@ class EpubRebuilder:
         new_book.set_language('pt-BR')
         new_book.add_author('Translated')
         
-        # Copiar CSS e imagens inalterados
+        # Reaproveitar os itens originais (CSS, imagens, fontes, capa...)
+        # Preserva classe, mídia e propriedades do EPUB (como cover-image).
+        # Recriar um EpubItem genérico a partir do código numérico do tipo
+        # descartava as imagens: no ebooklib imagem = 1, estilo = 2 e
+        # capa = 10, então apenas o CSS era copiado.
         for item in original_book.get_items():
             try:
                 item_type = item.get_type()
             except Exception:
                 continue
-            try:
-                media_type = getattr(item, 'media_type', None) or getattr(item, 'mediaType', None) or 'text/css'
-            except Exception:
-                media_type = 'text/css'
-            if item_type == 3:  # ITEM_STYLE
-                new_item = epub.EpubItem(
-                    uid=item.get_id(),
-                    file_name=item.get_name(),
-                    media_type=media_type,
-                    content=item.get_content()
-                )
-                new_book.add_item(new_item)
-            elif item_type == 2:  # ITEM_IMAGE
-                try:
-                    media_type = getattr(item, 'media_type', None) or getattr(item, 'mediaType', None) or item.get_media_type()
-                except Exception:
-                    media_type = getattr(item, 'media_type', 'image/jpeg')
-                new_item = epub.EpubItem(
-                    uid=item.get_id(),
-                    file_name=item.get_name(),
-                    media_type=media_type,
-                    content=item.get_content()
-                )
-                new_book.add_item(new_item)
-            elif item_type == 0:  # ITEM_COVER
-                try:
-                    media_type = getattr(item, 'media_type', None) or getattr(item, 'mediaType', None)
-                except Exception:
-                    media_type = None
-                if not media_type:
-                    media_type = 'image/jpeg'
-                new_item = epub.EpubItem(
-                    uid=item.get_id(),
-                    file_name=item.get_name(),
-                    media_type=media_type,
-                    content=item.get_content()
-                )
-                new_book.add_item(new_item)
+
+            # Documentos XHTML são processados no laço seguinte;
+            # a navegação é regenerada por EpubNcx/EpubNav.
+            if item_type in (ITEM_DOCUMENT, ITEM_NAVIGATION):
+                continue
+
+            new_book.add_item(item)
+
+        # <meta name="cover"> identifica a capa no EPUB2. Sem ela, alguns
+        # leitores exibem o livro sem capa mesmo com a imagem presente.
+        for value, attrs in original_book.get_metadata('OPF', 'cover'):
+            new_book.add_metadata('OPF', 'cover', value, attrs)
         
         # Processar capítulos XHTML com tradução
         spine_items = []
@@ -94,7 +71,7 @@ class EpubRebuilder:
                 item_type = item.get_type()
             except Exception:
                 continue
-            if item_type == 9:  # ITEM_DOCUMENT
+            if item_type == ITEM_DOCUMENT:
                 content = item.get_content()
                 file_name = item.get_name()
                 
