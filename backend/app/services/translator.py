@@ -242,7 +242,10 @@ class Translator:
                             # e trunca a resposta, o que também quebrava a
                             # segmentação de lotes grandes.
                             "num_ctx": settings.translation_num_ctx,
+                            # Limita a geração: evita loop de repetição que
+                            # consome o contexto inteiro e trava o lote.
                             "num_predict": settings.translation_num_predict,
+                            "repeat_penalty": settings.translation_repeat_penalty,
                         }
                     }
                 )

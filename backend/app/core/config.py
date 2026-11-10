@@ -17,7 +17,12 @@ class Settings(BaseSettings):
     # Sem num_ctx explícito o Ollama usa um valor baixo e trunca a resposta,
     # o que quebrava a segmentação de lotes grandes.
     translation_num_ctx: int = Field(default=8192)
-    translation_num_predict: int = Field(default=-1)
+    # Limite de tokens gerados por lote. Um valor infinito (-1) permite que
+    # o modelo entre em repetição e gere até estourar o contexto, travando
+    # o job por vários minutos. 2048 é folgado para lotes de CHUNK_SIZE.
+    translation_num_predict: int = Field(default=2048)
+    # Penalidade de repetição: reduz loops de geração em modelos menores.
+    translation_repeat_penalty: float = Field(default=1.15)
     
     max_upload_mb: int = Field(default=50)
     chunk_size: int = Field(default=4000)
