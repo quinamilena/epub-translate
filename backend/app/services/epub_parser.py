@@ -4,7 +4,7 @@ import zipfile
 from pathlib import Path
 from typing import Dict, List, Any
 from ebooklib import epub
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Comment, NavigableString
 
 
 # Atributo temporário usado para localizar cada bloco de forma única
@@ -17,10 +17,69 @@ PARSER_VERSION = 1
 # Tags cujo texto é traduzido
 TRANSLATABLE_TAGS = ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'td', 'th', 'blockquote', 'figcaption']
 
+# Tags que nunca fazem parte do texto traduzido e não devem ser preservadas
+# na distribuição da tradução
+IGNORED_CHILD_TAGS = ('script', 'style')
+
+
+def _split_proportional(text: str, weights: List[int]) -> List[str]:
+    """Divide `text` em partes proporcionais aos pesos informados.
+
+    Usado para recolocar a tradução nos nós de texto originais sem perder
+    imagens, quebras e outros elementos intercalados. O corte acontece em
+    limites de palavra para não fragmentar o texto.
+    """
+    words = text.split()
+    if not words:
+        return [''] * len(weights)
+
+    total = sum(weights) or 1
+    parts: List[str] = []
+    start = 0
+    accumulated = 0
+    for position, weight in enumerate(weights):
+        accumulated += weight
+        if position == len(weights) - 1:
+            end = len(words)
+        else:
+            end = round(len(words) * accumulated / total)
+            end = max(start, min(end, len(words)))
+        parts.append(' '.join(words[start:end]))
+        start = end
+    return parts
+
+
+def _block_text(tag) -> str:
+    """Monta o texto do bloco preservando as fronteiras entre as palavras.
+
+    `get_text(strip=True)` remove o espaço de cada nó antes de concatenar e
+    gruda palavras separadas por tags inline ("He wasveryangry"). Aqui os nós
+    são unidos como estão no documento e apenas espaços repetidos são
+    normalizados; `<br>` é convertido em separador.
+    """
+    pieces = []
+    for node in tag.descendants:
+        if isinstance(node, Comment):
+            continue
+        if isinstance(node, NavigableString):
+            pieces.append(str(node))
+        elif getattr(node, 'name', None) == 'br':
+            pieces.append(' ')
+    return ' '.join(''.join(pieces).split())
+
 
 def read_zip_entry(epub_path: str, file_name: str) -> bytes:
-    """Lê um documento diretamente do ZIP, sem carregar o livro inteiro."""
+    """Lê um documento diretamente do ZIP, sem carregar o livro inteiro, lidando com caminhos relativos."""
     with zipfile.ZipFile(epub_path) as archive:
+        names = archive.namelist()
+        if file_name in names:
+            return archive.read(file_name)
+        
+        cleaned_name = file_name.lstrip('/')
+        for name in names:
+            if name.lstrip('/') == cleaned_name or name.endswith('/' + cleaned_name):
+                return archive.read(name)
+        
         return archive.read(file_name)
 
 
@@ -128,7 +187,10 @@ class EpubParser:
             # as traduções deles seriam perdidas silenciosamente.
             if tag.find(TRANSLATABLE_TAGS):
                 continue
-            text = tag.get_text(strip=True)
+            # Junta o texto dos nós preservando as fronteiras entre palavras;
+            # concatenar com strip grudava palavras separadas por tags inline
+            # ("He wasveryangry").
+            text = _block_text(tag)
             if text and len(text) > 2:
                 # Marcador único: sem isso, tags com os mesmos atributos
                 # são resolvidas sempre para o primeiro elemento do documento
@@ -142,6 +204,60 @@ class EpubParser:
                     "attrs": {MARKER_ATTR: marker}
                 })
         return blocks, soup
+
+    def apply_translation(self, tag, translated: str) -> None:
+        """Aplica a tradução a um bloco sem descartar seu conteúdo interno.
+
+        `tag.string = tradução` apaga tudo que existe dentro da tag: imagens,
+        quebras de linha, marcações de página e links. Quando o bloco tem
+        elementos internos, a tradução é distribuída entre os nós de texto
+        originais, proporcionalmente à quantidade de palavras de cada um, para
+        que esses elementos permaneçam nas mesmas posições.
+        """
+        children = [
+            child
+            for child in tag.find_all(True)
+            if child.name not in IGNORED_CHILD_TAGS
+        ]
+        if not children:
+            tag.string = translated
+            return
+
+        text_nodes = [
+            node
+            for node in tag.find_all(string=True)
+            if isinstance(node, NavigableString)
+            and not isinstance(node, Comment)
+            and node.strip()
+        ]
+        if not text_nodes:
+            tag.append(translated)
+            return
+
+        originals = [str(node) for node in text_nodes]
+        parts = _split_proportional(
+            translated, [len(text.split()) for text in originals]
+        )
+        for index, (node, part) in enumerate(zip(text_nodes, parts)):
+            original = originals[index]
+            leading = original[: len(original) - len(original.lstrip())]
+            trailing = original[len(original.rstrip()):]
+            following = next(
+                (item for item in parts[index + 1:] if item), None
+            )
+            # A fronteira entre dois nós pode não ter espaço no original
+            # ("</strong>: texto"). Como a divisão é feita em palavras, sem
+            # isso as palavras ficariam coladas ao remontar o bloco.
+            if (
+                part
+                and following
+                and not trailing
+                and not originals[index + 1].startswith(' ')
+                and part[-1].isalnum()
+                and following[0].isalnum()
+            ):
+                trailing = ' '
+            node.replace_with(f"{leading}{part}{trailing}")
 
     def strip_markers(self, soup: BeautifulSoup) -> None:
         """Remove os marcadores internos antes de serializar o XHTML."""
