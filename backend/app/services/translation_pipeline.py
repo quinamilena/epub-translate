@@ -50,7 +50,7 @@ class DatabaseTranslatedItems:
                 continue
             tag = soup.find(attrs=block["attrs"])
             if tag:
-                tag.string = translated
+                self.parser.apply_translation(tag, translated)
 
         self.parser.strip_markers(soup)
         return str(soup)
@@ -91,12 +91,27 @@ class TranslationPipeline:
         ):
             return
 
+        # Reingestão também é necessária quando a extração anterior foi
+        # interrompida no meio: capítulos existem, mas nenhum bloco foi salvo.
+        needs_ingest = (
+            self.chapter_repo.count(job_id) == 0
+            or self.block_repo.count(job_id) == 0
+        )
+
         source_path = job["source_path"]
         if not source_path or not Path(source_path).exists():
             raise FileNotFoundError(f"Arquivo fonte não encontrado: {source_path}")
 
-        if self.chapter_repo.count(job_id) == 0:
+        if needs_ingest:
             self._ingest(job_id, source_path)
+            # Uma retomada anterior pode ter marcado capítulos sem blocos como
+            # "done". Reabre os capítulos que agora possuem blocos pendentes
+            # para que sejam realmente traduzidos.
+            for chapter in self.chapter_repo.list_by_job(job_id):
+                total = len(self.block_repo.list_by_chapter(chapter["id"]))
+                done = self.block_repo.count_status_for_chapter(chapter["id"], "done")
+                if total > 0 and done < total:
+                    self.chapter_repo.set_status(chapter["id"], "pending")
             if self._is_cancelled(job_id):
                 self.job_repo.update(
                     job_id, status="cancelled", message="Tradução cancelada"
