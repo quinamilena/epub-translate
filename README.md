@@ -1,10 +1,10 @@
 # EPUB Translate — Inglês para Português BR
 
-Aplicativo para traduzir livros EPUB do inglês para o português brasileiro preservando capítulos, sumário (TOC), imagens, CSS e a formatação original.
+Aplicativo para traduzir livros **EPUB e PDF** do inglês para o português brasileiro. EPUBs preservam capítulos, sumário (TOC), imagens, CSS e a formatação original. PDFs são extraídos e convertidos em um EPUB traduzido.
 
 - **Backend:** FastAPI (Python) + SQLite
 - **Frontend:** HTML/CSS/JavaScript estático
-- **Parser/Reconstrução:** ebooklib + BeautifulSoup
+- **Parser/Reconstrução:** ebooklib + BeautifulSoup + PyMuPDF
 - **Tradução:** Ollama (local), OpenAI ou Google Gemini
 - **Validação:** epubcheck (opcional; incluso na imagem Docker)
 
@@ -14,16 +14,40 @@ Este README mostra como rodar **sem Docker** e **com Docker**, a diferença entr
 
 ## Como funciona o processamento
 
-1. Upload do EPUB.
-2. Extração de capítulos, blocos de texto, imagens e CSS.
-3. Tradução por lotes (`CHUNK_SIZE` caracteres por chamada), com contexto do capítulo.
-4. Reconstrução do EPUB preservando estrutura, capa, imagens e estilos.
+1. Upload do EPUB ou PDF.
+2. Extração de capítulos/páginas, blocos de texto, imagens e CSS.
+3. Tradução por lotes (`CHUNK_SIZE` caracteres por chamada). Cada lote recebe os parágrafos anteriores como contexto (apenas para resolver pronomes e referências — eles não são traduzidos). A quantidade vem do seletor **Contexto** na tela (padrão: 2 parágrafos).
+4. Reconstrução do EPUB preservando estrutura, capa, imagens e estilos (no caso de PDF, o EPUB é gerado a partir das páginas).
 5. Validação com epubcheck (quando disponível).
 6. Download do EPUB traduzido.
+
+### Glossário de termos
+
+O glossário fixa terminologia (por exemplo, `firebending` → `dobra de fogo`). Os termos presentes em cada lote entram no prompt de tradução e, se o modelo deixar algum termo em inglês, são substituídos no resultado.
+
+- A interface lista os glossários disponíveis em `backend/glossaries/*.json` no seletor **Glossário de termos**.
+- Incluído: `avatar.json`, com termos do universo Avatar (dobras, nações, títulos).
+- Para criar outro: `POST /api/glossaries` com `{"name": "meu-livro", "entries": {"termo EN": "termo PT"}}`, ou edite o JSON direto.
+
+### Formatos aceitos
+
+| Entrada | Saída | Observação |
+|---|---|---|
+| `.epub` | `.epub` | Estrutura, capa, imagens e CSS originais preservados |
+| `.pdf` | `.epub` | Texto e imagens são extraídos e reorganizados; o layout fixo do PDF não é mantido |
+
+PDFs digitalizados (sem camada de texto) **não são suportados** nesta versão, porque exigiriam OCR. O app informa o erro e o job pode ser cancelado.
 
 O processamento é assíncrono e cada etapa é persistida no banco (`backend/data/epub_translate.db`). Se algo falhar, o job pode ser **retomado** sem recomeçar do zero.
 
 > O pipeline processa **um job por vez**. Isso evita saturar a GPU/RAM do Ollama e mantém o uso de memória previsível. A concorrência interna é assíncrona (`async/await`), não multiprocessos.
+
+### Pausar e retomar
+
+- **Pausar** interrompe a tradução ao terminar o lote atual (alguns segundos) e mantém todos os blocos já traduzidos. O job fica com status `paused`.
+- **Retomar** continua exatamente de onde parou: capítulos concluídos são pulados e só os blocos pendentes são traduzidos.
+- **Cancelar** é diferente: marca o job como `cancelled`. Também é possível retomar depois, mas o status final fica registrado como cancelado até a retomada.
+- Se o backend cair ou for reiniciado com um job ativo, ele é marcado como `paused` automaticamente e pode ser retomado pela tela.
 
 ---
 
@@ -53,7 +77,7 @@ epub-translate/
 
 ### Comuns aos dois modos
 
-- Um EPUB de entrada.
+- Um EPUB ou PDF de entrada.
 - Um provedor de tradução configurado (veja a seção [Configuração mínima](#configuração-mínima-para-traduzir)).
 
 ### Para rodar sem Docker
@@ -85,7 +109,7 @@ Só existem três caminhos possíveis de provedor. Escolha **um** deles.
 
 ```env
 TRANSLATION_PROVIDER=ollama
-TRANSLATION_MODEL=qwen2.5:7b-instruct
+TRANSLATION_MODEL=qwen2.5:14b-instruct
 TRANSLATION_BASE_URL=http://localhost:11434
 TRANSLATION_API_KEY=
 ```
@@ -93,19 +117,20 @@ TRANSLATION_API_KEY=
 Antes de traduzir, o modelo precisa existir no Ollama:
 
 ```powershell
-ollama pull qwen2.5:7b-instruct
+ollama pull qwen2.5:14b-instruct
 ollama serve
 ```
 
 Alternativas mais leves (menos RAM/VRAM, tradução um pouco inferior):
 
 ```powershell
+ollama pull qwen2.5:7b-instruct
 ollama pull qwen2.5:3b-instruct
 ```
 
-E ajuste `TRANSLATION_MODEL=qwen2.5:3b-instruct`.
+E ajuste `TRANSLATION_MODEL=qwen2.5:7b-instruct` (ou `qwen2.5:3b-instruct`).
 
-> Modelos de 7B geralmente pedem ~5–8 GB de RAM/VRAM livres. Livros grandes usam mais contexto e demoram mais.
+> O 14B pede ~10–12 GB de VRAM/RAM livres e leva cerca do dobro do tempo do 7B, mas erra menos referentes e concordância. O 7B pede ~5–8 GB. Livros grandes usam mais contexto e demoram mais.
 
 ### Opção 2 — OpenAI
 
@@ -133,18 +158,23 @@ TRANSLATION_BASE_URL=
 TRANSLATION_NUM_CTX=8192
 TRANSLATION_NUM_PREDICT=2048
 TRANSLATION_REPEAT_PENALTY=1.15
+TRANSLATION_TEMPERATURE=0.15
+TRANSLATION_CONTEXT_BLOCKS=2
 ```
 
 - `TRANSLATION_NUM_CTX`: janela de contexto enviada ao Ollama. Baixo demais trunca a resposta; alto demais consome RAM/VRAM.
 - `TRANSLATION_NUM_PREDICT`: limite de tokens gerados por lote. **Não use `-1`**: se o modelo entrar em repetição, ele gera até estourar o contexto e o job parece travado.
 - `TRANSLATION_REPEAT_PENALTY`: reduz loops de geração em modelos menores.
+- `TRANSLATION_TEMPERATURE`: quanto menor, mais estável a tradução. Acima de ~0.3 o modelo pode trocar o referente de um pronome entre duas execuções do mesmo trecho.
+- `TRANSLATION_CONTEXT_BLOCKS`: valor inicial do seletor **Contexto** (0–10 parágrafos). O valor escolhido na tela é gravado no job e reaproveitado ao retomar.
 
 ### Onde a configuração é aplicada: `.env` x tela
 
-A tela possui os campos **Provedor**, **Modelo**, **Base URL** e **API Key**. Eles são enviados junto com o upload e **têm prioridade sobre o `.env`** quando preenchidos.
+A tela possui os campos **Provedor**, **Modelo**, **Base URL**, **API Key**, **Glossário de termos** e **Contexto**. Eles são enviados junto com o upload e **têm prioridade sobre o `.env`** quando preenchidos.
 
 - Deixe um campo vazio na tela para usar o valor do `.env`.
-- A tela já vem preenchida com `ollama`, `qwen2.5:7b-instruct` e `http://localhost:11434`. Isso é ótimo no modo local, mas **precisa ser ajustado no modo Docker** (veja abaixo).
+- O seletor **Contexto** define quantos parágrafos anteriores acompanham cada lote (0 a 10). Mais contexto ajuda em pronomes e referências, mas aumenta o prompt e o tempo por lote. O padrão é 2.
+- A tela já vem preenchida com `ollama`, `qwen2.5:14b-instruct` e `http://localhost:11434`. Isso é ótimo no modo local, mas **precisa ser ajustado no modo Docker** (veja abaixo).
 - Ao usar **OpenAI**, limpe o campo **Base URL** da tela (ou deixe-o vazio), porque a tela envia esse valor e ele sobrescreveria o endpoint correto da OpenAI.
 
 ---
@@ -232,10 +262,10 @@ Serviços:
 O Ollama do Docker é uma instância separada do Ollama do host. Os modelos precisam ser baixados **no container**:
 
 ```powershell
-docker exec -it epub-ollama ollama pull qwen2.5:7b-instruct
+docker exec -it epub-ollama ollama pull qwen2.5:14b-instruct
 ```
 
-> O `docker-compose.yml` define `translategemma:4b` como padrão **de ambiente**. Se você for usar o modelo padrão da tela (`qwen2.5:7b-instruct`), baixe esse. Se preferir usar o valor do Compose, baixe `translategemma:4b` ou ajuste `TRANSLATION_MODEL` no Compose. O ideal é manter o mesmo nome nos dois lugares.
+> O `docker-compose.yml` define `translategemma:4b` como padrão **de ambiente**. Se você for usar o modelo padrão da tela (`qwen2.5:14b-instruct`), baixe esse. Se preferir usar o valor do Compose, baixe `translategemma:4b` ou ajuste `TRANSLATION_MODEL` no Compose. O ideal é manter o mesmo nome nos dois lugares.
 
 ### 4) Ajustar a tela (atenção)
 
@@ -347,10 +377,11 @@ Use `0` para desativar a limpeza.
 
 | Método | Rota | Descrição |
 |---|---|---|
-| `POST` | `/api/upload` | Envia EPUB e inicia a tradução |
+| `POST` | `/api/upload` | Envia EPUB ou PDF e inicia a tradução |
 | `GET` | `/api/status/{job_id}` | Status e progresso |
 | `GET` | `/api/jobs` | Lista jobs |
 | `POST` | `/api/jobs/{job_id}/resume` | Retoma um job |
+| `POST` | `/api/jobs/{job_id}/pause` | Pausa um job em andamento |
 | `POST` | `/api/jobs/{job_id}/cancel` | Cancela um job |
 | `GET` | `/api/download/{filename}` | Baixa o EPUB traduzido |
 | `GET` | `/api/glossaries` | Lista glossários |
@@ -434,3 +465,7 @@ Já corrigido: o rebuilder copia todos os itens não-documento (imagens, capa, C
 - A chave de API não é persistida; informe novamente ao retomar um job.
 - O pipeline executa um job por vez.
 - Notas de rodapé e elementos muito específicos ainda podem exigir revisão manual.
+- Em PDFs, a ordem dos parágrafos depende do gerador do arquivo; tabelas, fórmulas, duas colunas e notas laterais podem sair fora de ordem.
+- PDFs digitalizados (sem camada de texto) não são suportados; seria necessário OCR.
+- O PDF de entrada não é preservado: a saída é sempre um EPUB.
+- Aumente `MAX_UPLOAD_MB` no `backend/.env` se seus PDFs passarem de 50 MB.
