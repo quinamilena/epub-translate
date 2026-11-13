@@ -23,6 +23,13 @@ class Settings(BaseSettings):
     translation_num_predict: int = Field(default=2048)
     # Penalidade de repetição: reduz loops de geração em modelos menores.
     translation_repeat_penalty: float = Field(default=1.15)
+    # Temperatura baixa deixa a tradução mais estável: em 0.3 o modelo às
+    # vezes trocava o referente de um pronome entre duas execuções do mesmo
+    # trecho. Tradução não se beneficia de criatividade.
+    translation_temperature: float = Field(default=0.15)
+    # Quantos parágrafos anteriores acompanham cada lote como contexto (não
+    # são traduzidos; servem para resolver pronomes e referências).
+    translation_context_blocks: int = Field(default=2)
     
     max_upload_mb: int = Field(default=50)
     chunk_size: int = Field(default=4000)

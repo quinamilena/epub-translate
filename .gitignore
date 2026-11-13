@@ -23,6 +23,8 @@ backend/tmp/*
 !backend/tmp/.gitkeep
 backend/glossaries/*
 !backend/glossaries/.gitkeep
+# Glossário de exemplo que acompanha o projeto (os demais são dados do usuário).
+!backend/glossaries/avatar.json
 backend/data/*
 !backend/data/.gitkeep
 

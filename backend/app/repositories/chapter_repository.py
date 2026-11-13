@@ -10,10 +10,16 @@ class ChapterRepository:
         with connection() as conn:
             conn.executemany(
                 """INSERT OR IGNORE INTO chapters
-                   (job_id, file_name, item_id, order_index, status)
-                   VALUES (?, ?, ?, ?, 'pending')""",
+                   (job_id, file_name, item_id, title, order_index, status)
+                   VALUES (?, ?, ?, ?, ?, 'pending')""",
                 [
-                    (job_id, doc["file_name"], doc.get("item_id"), index)
+                    (
+                        job_id,
+                        doc["file_name"],
+                        doc.get("item_id"),
+                        doc.get("title"),
+                        index,
+                    )
                     for index, doc in enumerate(documents)
                 ],
             )

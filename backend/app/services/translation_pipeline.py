@@ -19,6 +19,12 @@ from app.services.translator import Translator, looks_untranslated
 from app.utils.cleanup import cleanup_old_files
 
 
+# Contexto enviado junto com cada lote: parágrafos anteriores servem apenas
+# para resolver pronomes. O limite evita inflar o num_ctx do Ollama.
+CONTEXT_BLOCKS = 2
+CONTEXT_CHARS = 1200
+
+
 class DatabaseTranslatedItems:
     """Mapeamento preguiçoso `file_name -> XHTML traduzido`.
 
@@ -338,6 +344,10 @@ class TranslationPipeline:
         job = self.job_repo.get(job_id)
         total_blocks = job["total_blocks"] or 1
         chapters = self.chapter_repo.list_by_job(job_id)
+        is_pdf = (job.get("source_format") or "epub") == "pdf"
+        context_blocks = job.get("context_blocks")
+        if context_blocks is None:
+            context_blocks = settings.translation_context_blocks
 
         for chapter in chapters:
             stop_reason = self._stop_reason(job_id)
@@ -354,15 +364,31 @@ class TranslationPipeline:
                 self.chapter_repo.set_status(chapter["id"], "done")
                 continue
 
+            # Todos os blocos do capítulo (inclusive os já traduzidos, em caso
+            # de retomada) servem de contexto para os lotes seguintes.
+            chapter_blocks = self.block_repo.list_by_chapter(chapter["id"])
+            positions = {
+                block["block_index"]: position
+                for position, block in enumerate(chapter_blocks)
+            }
+
             for batch_indices in self._chunk_indices(texts, settings.chunk_size):
                 stop_reason = self._stop_reason(job_id)
                 if stop_reason:
                     return stop_reason
 
                 batch = [pending[index] for index in batch_indices]
+                context = self._build_context(
+                    chapter,
+                    chapter_blocks,
+                    positions,
+                    batch[0],
+                    is_pdf,
+                    context_blocks,
+                )
                 translated = await translator.translate_batch(
                     [block["source_text"] for block in batch],
-                    context=f"Capítulo: {chapter['file_name']}",
+                    context=context,
                 )
 
                 updates = []
@@ -410,6 +436,56 @@ class TranslationPipeline:
             )
 
         return None
+
+    @staticmethod
+    def _build_context(
+        chapter: Dict[str, Any],
+        chapter_blocks: List[Dict[str, Any]],
+        positions: Dict[int, int],
+        first_block: Dict[str, Any],
+        is_pdf: bool,
+        context_blocks: int = CONTEXT_BLOCKS,
+    ) -> str:
+        """Monta o contexto do lote: rótulo da seção + parágrafos anteriores.
+
+        Cada bloco é traduzido isoladamente, então pronomes como "her mother"
+        ficam sem referente. Os parágrafos anteriores entram como referência
+        (não são traduzidos). Em retomadas, blocos já traduzidos continuam
+        valendo como contexto. `context_blocks` vem da configuração do job.
+        """
+        if is_pdf:
+            label = chapter.get("title")
+            if not label:
+                label = (
+                    chapter.get("item_id") or chapter["file_name"]
+                ).replace("pdf:pages:", "páginas ")
+            base = f"Seção do PDF: {label}"
+        else:
+            base = f"Capítulo: {chapter['file_name']}"
+
+        if context_blocks <= 0:
+            return base
+
+        position = positions.get(first_block.get("block_index"))
+        if not position:
+            return base
+
+        previous = [
+            block["source_text"]
+            for block in chapter_blocks[
+                max(0, position - context_blocks):position
+            ]
+        ]
+        snippet = "\n\n".join(text for text in previous if text).strip()
+        if not snippet:
+            return base
+        if len(snippet) > CONTEXT_CHARS:
+            snippet = snippet[-CONTEXT_CHARS:]
+
+        return (
+            f"{base}\n\nTrechos anteriores do mesmo capítulo (use apenas para "
+            f"entender pronomes e referências; não os traduza):\n{snippet}"
+        )
 
     def _assemble(self, job_id: str) -> str:
         job = self.job_repo.get(job_id)

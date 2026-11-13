@@ -1,3 +1,4 @@
+import json
 from typing import Any, Dict, List
 
 from app.db.database import connection
@@ -12,10 +13,22 @@ class BlockRepository:
         with connection() as conn:
             conn.executemany(
                 """INSERT OR IGNORE INTO blocks
-                   (job_id, chapter_id, block_index, source_text, status)
-                   VALUES (?, ?, ?, ?, 'pending')""",
+                   (job_id, chapter_id, block_index, source_text, kind,
+                    meta_json, status)
+                   VALUES (?, ?, ?, ?, ?, ?, 'pending')""",
                 [
-                    (job_id, chapter_id, block["index"], block["text"])
+                    (
+                        job_id,
+                        chapter_id,
+                        block["index"],
+                        block["text"],
+                        block.get("tag") or block.get("kind") or "p",
+                        (
+                            json.dumps(block["meta"], ensure_ascii=False)
+                            if block.get("meta")
+                            else None
+                        ),
+                    )
                     for block in blocks
                 ],
             )

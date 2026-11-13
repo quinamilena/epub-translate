@@ -153,6 +153,14 @@ uploadForm.addEventListener('submit', async (e) => {
     formData.append('model', document.getElementById('model').value);
     formData.append('apiKey', document.getElementById('apiKey').value);
     formData.append('baseUrl', document.getElementById('baseUrl').value);
+    const glossary = document.getElementById('glossary').value;
+    if (glossary) {
+        formData.append('glossary', glossary);
+    }
+    formData.append(
+        'contextBlocks',
+        document.getElementById('contextBlocks').value
+    );
     
     submitBtn.disabled = true;
     submitBtn.textContent = 'Enviando...';
@@ -398,14 +406,16 @@ function resetForm() {
     uploadForm.reset();
     removeFile();
     document.getElementById('provider').value = 'ollama';
-    document.getElementById('model').value = 'qwen2.5:7b-instruct';
+    document.getElementById('model').value = 'qwen2.5:14b-instruct';
     document.getElementById('baseUrl').value = 'http://localhost:11434';
+    document.getElementById('contextBlocks').value = '2';
 
     switchTab('translate');
     setPanel('upload');
     progressStats.textContent = '';
 
     cancelBtn.style.display = 'inline-block';
+    setPauseButton(false);
     resumeBtn.style.display = 'none';
     errorResumeBtn.style.display = 'none';
     resultResumeBtn.style.display = 'none';
@@ -485,6 +495,12 @@ function formatJobStats(job) {
     const unit = job.source_format === 'pdf' ? 'Seções' : 'Capítulos';
     return `${unit}: ${doneChapters}/${totalChapters} • Blocos: ${doneBlocks}/${totalBlocks}`;
 }
+
+function formatContext(job) {
+    if (job.context_blocks === null || job.context_blocks === undefined) return '';
+    const blocks = Number(job.context_blocks);
+    if (!Number.isFinite(blocks)) return '';
+    return blocks > 0 ? `Contexto: ${blocks} parágrafo(s)` : 'Contexto: nenhum';
 }
 
 function renderJob(job) {
@@ -519,7 +535,7 @@ function renderJob(job) {
     progress.appendChild(progressBar);
 
     const meta = makeElement('p', 'job-meta');
-    meta.textContent = [job.message, formatJobStats(job)]
+    meta.textContent = [job.message, formatJobStats(job), formatContext(job)]
         .filter(Boolean)
         .join(' • ');
 
@@ -627,6 +643,27 @@ async function cancelJobFromList(jobId) {
     }
 }
 
+async function loadGlossaries() {
+    const select = document.getElementById('glossary');
+    if (!select) return;
+
+    try {
+        const response = await fetch(`${API_URL}/glossaries`);
+        if (!response.ok) return;
+
+        const data = await response.json();
+        (data.glossaries || []).forEach((item) => {
+            const option = document.createElement('option');
+            option.value = item.name;
+            option.textContent = `${item.name} (${item.count} termos)`;
+            select.appendChild(option);
+        });
+    } catch (error) {
+        console.error('Erro ao carregar glossários:', error);
+    }
+}
+
 switchTab('translate');
 loadJobs();
+loadGlossaries();
 jobsInterval = setInterval(loadJobs, 5000);

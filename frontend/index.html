@@ -62,7 +62,7 @@
                         </div>
                         <div class="form-group">
                             <label for="model">Modelo</label>
-                            <input type="text" id="model" name="model" value="qwen2.5:7b-instruct" placeholder="qwen2.5:7b-instruct">
+                            <input type="text" id="model" name="model" value="qwen2.5:14b-instruct" placeholder="qwen2.5:14b-instruct">
                         </div>
                         <div class="form-group">
                             <label for="baseUrl">Ollama URL</label>
@@ -71,6 +71,22 @@
                         <div class="form-group">
                             <label for="apiKey">API Key (apenas para OpenAI/Gemini)</label>
                             <input type="password" id="apiKey" name="apiKey" placeholder="sk-... ou chave Gemini">
+                        </div>
+                        <div class="form-group">
+                            <label for="glossary">Glossário de termos</label>
+                            <select id="glossary" name="glossary">
+                                <option value="">Nenhum</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="contextBlocks">Contexto (parágrafos anteriores)</label>
+                            <select id="contextBlocks" name="contextBlocks">
+                                <option value="0">Nenhum</option>
+                                <option value="1">1 parágrafo</option>
+                                <option value="2" selected>2 parágrafos (recomendado)</option>
+                                <option value="3">3 parágrafos</option>
+                                <option value="5">5 parágrafos</option>
+                            </select>
                         </div>
                     </div>
 

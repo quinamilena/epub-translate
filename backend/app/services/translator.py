@@ -12,6 +12,10 @@ from app.services.glossary_manager import GlossaryManager
 NUMBER_MARKER_PATTERN = re.compile(r"\[\[\s*(\d+)\s*\]\]")
 LEGACY_SEPARATORS = ("\n===SEPARATOR===\n", "===SEPARATOR===")
 
+# Limite de termos do glossário repetidos no prompt. Um glossário grande não
+# pode inflar cada chamada, então só entram os termos presentes no lote.
+MAX_PROMPT_TERMS = 40
+
 # Erro irrecuperável da chamada ao provedor (rede, autenticação, etc.).
 # Nesse caso não adianta subdividir o lote: todas as divisões falhariam igual.
 class TranslationCallError(Exception):
@@ -49,8 +53,13 @@ class Translator:
         if not texts:
             return []
 
-        # Aplicar glossário antes da tradução
-        prepared = [self.glossary_manager.apply_glossary(t, self.glossary) for t in texts]
+        # Termos do glossário presentes neste lote entram no prompt como
+        # instrução explícita. O texto original não é pré-substituído: trocar
+        # termos no meio do inglês quebra a gramática da frase enviada
+        # ("a dobra de fogo master"). A substituição pós-tradução continua
+        # como rede de segurança para termos que o modelo deixar em inglês.
+        terms = self._matching_terms(texts)
+
         results: List[Optional[str]] = [None] * len(texts)
 
         async def translate_indices(indices: List[int]) -> None:
@@ -61,10 +70,10 @@ class Translator:
             falha de segmentação afeta no máximo o bloco que realmente falhou,
             em vez de descartar o lote inteiro (comportamento antigo).
             """
-            subset = [prepared[i] for i in indices]
+            subset = [texts[i] for i in indices]
 
             try:
-                parsed = await self._translate_subset(subset, context)
+                parsed = await self._translate_subset(subset, context, terms)
             except TranslationCallError:
                 # Falha de infraestrutura: interrompe o job para que possa ser
                 # retomado, em vez de marcar os blocos como "não traduzidos".
@@ -72,7 +81,7 @@ class Translator:
 
             pending: List[int] = []
             for index, translated in zip(indices, parsed):
-                if not looks_untranslated(prepared[index], translated):
+                if not looks_untranslated(texts[index], translated):
                     results[index] = translated
                 else:
                     pending.append(index)
@@ -110,7 +119,35 @@ class Translator:
 
         return final_result
 
-    async def _translate_subset(self, texts: List[str], context: str) -> List[Optional[str]]:
+    def _matching_terms(self, texts: List[str]) -> Dict[str, str]:
+        """Termos do glossário que aparecem no lote.
+
+        O glossário é aplicado por substituição textual, o que não cobre
+        flexões nem muda a concordância. Repetir os termos no prompt faz o
+        modelo usá-los com naturalidade.
+        """
+        if not self.glossary:
+            return {}
+
+        haystack = "\n".join(texts).casefold()
+        matched: Dict[str, str] = {}
+        for source, target in self.glossary.items():
+            key = (source or "").strip()
+            if not key or not target:
+                continue
+            if key.casefold() not in haystack:
+                continue
+            matched[key] = target
+            if len(matched) >= MAX_PROMPT_TERMS:
+                break
+        return matched
+
+    async def _translate_subset(
+        self,
+        texts: List[str],
+        context: str,
+        terms: Optional[Dict[str, str]] = None,
+    ) -> List[Optional[str]]:
         """Faz uma chamada ao provedor e devolve a lista alinhada de traduções."""
         system_prompt = (
             "Você é um tradutor profissional especializado em tradução literária "
@@ -120,10 +157,23 @@ class Translator:
             "- Preserve nomes próprios e termos técnicos quando não houver tradução consagrada\n"
             "- Mantenha expressões idiomáticas apropriadas ao PT-BR\n"
             "- Não adicione explicações, comentários ou notas\n"
+            "- Não invente informação que não esteja no segmento\n"
+            "- Não troque o agente da ação: mantenha quem pratica e quem recebe\n"
+            "- O contexto serve apenas para entender pronomes e referências; "
+            "não o traduza nem o repita\n"
             "- Cada segmento recebe um marcador [[n]]; reproduza o mesmo marcador "
             "imediatamente antes da tradução correspondente\n"
-            "- Preserve pontuação e estrutura quando possível"
+            "- Preserve pontuação, aspas e estrutura quando possível"
         )
+
+        if terms:
+            listing = "; ".join(
+                f"{source} = {target}" for source, target in terms.items()
+            )
+            system_prompt += (
+                "\nGlossário obrigatório (use exatamente estas traduções):\n"
+                f"{listing}"
+            )
 
         header = f"Contexto: {context}\n\n" if context else ""
         numbered = "\n\n".join(
@@ -216,7 +266,7 @@ class Translator:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
                 ],
-                temperature=0.3,
+                temperature=settings.translation_temperature,
             )
             return response.choices[0].message.content or ""
         except Exception as e:
@@ -237,7 +287,7 @@ class Translator:
                         ],
                         "stream": False,
                         "options": {
-                            "temperature": 0.3,
+                            "temperature": settings.translation_temperature,
                             # Sem num_ctx explícito o Ollama usa um valor baixo
                             # e trunca a resposta, o que também quebrava a
                             # segmentação de lotes grandes.

@@ -17,12 +17,22 @@ async def upload_epub(
     model: str = Form(None),
     api_key: str = Form(None, alias="apiKey"),
     baseUrl: str = Form(None),
+    glossary: str = Form(None),
+    context_blocks: int = Form(None, alias="contextBlocks"),
 ):
     suffix = Path(file.filename).suffix.lower()
     if suffix not in {'.epub', '.pdf'}:
         raise HTTPException(
             status_code=400,
             detail="Apenas arquivos .epub ou .pdf são permitidos",
+        )
+
+    # Validar antes de criar o job: um valor inválido não pode deixar
+    # um job órfão no banco.
+    if context_blocks is not None and not 0 <= context_blocks <= 10:
+        raise HTTPException(
+            status_code=400,
+            detail="Contexto deve estar entre 0 e 10 parágrafos",
         )
 
     # Validar tamanho
@@ -55,6 +65,10 @@ async def upload_epub(
         translation_config["api_key"] = api_key
     if baseUrl:
         translation_config["base_url"] = baseUrl
+    if glossary:
+        translation_config["glossary"] = glossary
+    if context_blocks is not None:
+        translation_config["context_blocks"] = context_blocks
     
     # Processar em background
     background_tasks.add_task(job_manager.process_job, job_id, str(file_path), translation_config)

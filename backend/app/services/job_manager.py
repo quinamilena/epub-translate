@@ -99,6 +99,11 @@ class JobManager:
         )
         if translation_config.get("glossary"):
             fields["glossary"] = translation_config["glossary"]
+        context_blocks = translation_config.get("context_blocks")
+        if context_blocks is None:
+            context_blocks = settings.translation_context_blocks
+        # Limite defensivo: contexto grande demais infla o num_ctx do Ollama.
+        fields["context_blocks"] = max(0, min(int(context_blocks), 10))
         if translation_config.get("api_key"):
             # A chave em si nunca é persistida.
             fields["has_api_key"] = 1

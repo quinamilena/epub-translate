@@ -49,8 +49,13 @@ class GlossaryManager:
         if not glossary:
             return text
         result = text
-        # Aplicar substituições (case-sensitive por padrão, palavras inteiras quando possível)
-        for source, target in glossary.items():
-            # Substituição simples
+        # Termos mais longos primeiro: senão "bending" substituiria dentro de
+        # "firebending" e o resultado viraria "firedobra".
+        ordered = sorted(
+            glossary.items(), key=lambda item: len(item[0] or ""), reverse=True
+        )
+        for source, target in ordered:
+            if not source or not target:
+                continue
             result = result.replace(source, target)
         return result
