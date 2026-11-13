@@ -110,9 +110,11 @@ class JobManager:
 
     async def resume(self, job_id: str, api_key: Optional[str] = None) -> None:
         job = self.job_repo.get(job_id)
-        if job and job["status"] == "cancelled":
+        # "queued" tira o job de paused/cancelled antes de rodar; assim o
+        # pipeline não confunde a retomada com um novo pedido de pausa.
+        if job and job["status"] in ("cancelled", "paused", "pausing"):
             self.job_repo.update(
-                job_id, status="paused", message="Retomando tradução..."
+                job_id, status="queued", message="Retomando tradução..."
             )
         await self.pipeline.run(job_id, api_key=api_key)
 
@@ -121,6 +123,20 @@ class JobManager:
             return False
         self.job_repo.update(
             job_id, status="cancelled", message="Cancelamento solicitado"
+        )
+        return True
+
+    def pause_job(self, job_id: str) -> bool:
+        """Solicita a pausa. O pipeline para ao terminar o lote atual."""
+        job = self.job_repo.get(job_id)
+        if not job:
+            return False
+        if job["status"] not in ("queued", "extracting", "translating"):
+            return False
+        self.job_repo.update(
+            job_id,
+            status="pausing",
+            message="Pausa solicitada. Aguardando o lote atual terminar...",
         )
         return True
 

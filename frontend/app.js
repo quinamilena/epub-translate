@@ -17,6 +17,7 @@ const errorMessage = document.getElementById('errorMessage');
 const submitBtn = document.getElementById('submitBtn');
 const progressStats = document.getElementById('progressStats');
 const cancelBtn = document.getElementById('cancelBtn');
+const pauseBtn = document.getElementById('pauseBtn');
 const resumeBtn = document.getElementById('resumeBtn');
 const errorResumeBtn = document.getElementById('errorResumeBtn');
 const resultResumeBtn = document.getElementById('resultResumeBtn');
@@ -33,6 +34,7 @@ const STATUS_LABELS = {
     queued: 'Na fila',
     extracting: 'Extraindo',
     translating: 'Traduzindo',
+    pausing: 'Pausando',
     rebuilding: 'Reconstruindo',
     validating: 'Validando',
     paused: 'Pausada',
@@ -41,7 +43,8 @@ const STATUS_LABELS = {
     error: 'Erro'
 };
 
-const ACTIVE_STATUSES = ['queued', 'extracting', 'translating', 'rebuilding', 'validating'];
+const ACTIVE_STATUSES = ['queued', 'extracting', 'translating', 'pausing', 'rebuilding', 'validating'];
+const PAUSABLE_STATUSES = ['queued', 'extracting', 'translating'];
 const RESUMABLE_STATUSES = ['paused', 'cancelled', 'error'];
 
 let currentJobId = null;
@@ -178,7 +181,15 @@ uploadForm.addEventListener('submit', async (e) => {
     }
 });
 
+function setPauseButton(visible, text = 'Pausar', disabled = false) {
+    if (!pauseBtn) return;
+    pauseBtn.style.display = visible ? 'inline-block' : 'none';
+    pauseBtn.textContent = text;
+    pauseBtn.disabled = disabled;
+}
+
 function setRunningUI() {
+    setPauseButton(true);
     cancelBtn.disabled = false;
     cancelBtn.textContent = 'Cancelar';
     cancelBtn.style.display = 'inline-block';
@@ -208,6 +219,14 @@ function applyJobStatus(data) {
     progressPercent.textContent = data.progress + '%';
     progressMessage.textContent = data.message || '';
     updateStats(data);
+
+    if (data.status === 'pausing') {
+        setPauseButton(true, 'Pausando...', true);
+    } else if (PAUSABLE_STATUSES.includes(data.status)) {
+        setPauseButton(true);
+    } else {
+        setPauseButton(false);
+    }
 
     if (data.status === 'done') {
         clearInterval(pollInterval);
@@ -298,6 +317,28 @@ async function cancelJob() {
     } catch (error) {
         cancelBtn.disabled = false;
         cancelBtn.textContent = 'Cancelar';
+        alert(error.message);
+    }
+}
+
+async function pauseJob() {
+    if (!currentJobId) return;
+
+    setPauseButton(true, 'Pausando...', true);
+
+    try {
+        const response = await fetch(`${API_URL}/jobs/${currentJobId}/pause`, {
+            method: 'POST'
+        });
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Erro ao pausar');
+        }
+        progressMessage.textContent =
+            'Pausa solicitada. Aguardando o lote atual terminar...';
+        loadJobs();
+    } catch (error) {
+        setPauseButton(true);
         alert(error.message);
     }
 }
@@ -515,6 +556,13 @@ function renderJob(job) {
         RESUMABLE_STATUSES.includes(status) ||
         (status === 'done' && pendingBlocks > 0);
 
+    if (PAUSABLE_STATUSES.includes(status)) {
+        const pauseButton = makeElement('button', 'btn-secondary btn-small', 'Pausar');
+        pauseButton.type = 'button';
+        pauseButton.addEventListener('click', () => pauseJobFromList(job.job_id));
+        actions.appendChild(pauseButton);
+    }
+
     if (canResume) {
         const resumeButton = makeElement(
             'button',
@@ -543,6 +591,23 @@ function openJob(jobId) {
     switchTab('translate');
     setPanel('progress');
     startPolling();
+}
+
+async function pauseJobFromList(jobId) {
+    try {
+        const response = await fetch(`${API_URL}/jobs/${jobId}/pause`, {
+            method: 'POST'
+        });
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Erro ao pausar');
+        }
+
+        await loadJobs();
+        if (jobId === currentJobId) pollJobStatus();
+    } catch (error) {
+        alert(error.message);
+    }
 }
 
 async function cancelJobFromList(jobId) {

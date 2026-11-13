@@ -4,13 +4,16 @@ from typing import Any, Dict, List, Optional
 from app.db.database import connection
 
 
-ACTIVE_STATUSES = ("queued", "extracting", "translating", "rebuilding", "validating")
+ACTIVE_STATUSES = (
+    "queued", "extracting", "translating", "rebuilding", "validating", "pausing",
+)
 
 _UPDATABLE = {
-    "source_path", "status", "progress", "message", "provider", "model",
-    "base_url", "glossary", "has_api_key", "parser_version", "source_title",
-    "total_chapters", "done_chapters", "total_blocks", "done_blocks",
-    "output_path", "validation_json", "errors_json", "error",
+    "source_path", "source_format", "status", "progress", "message", "provider",
+    "model", "base_url", "glossary", "context_blocks", "has_api_key",
+    "parser_version", "source_title", "total_chapters", "done_chapters",
+    "total_blocks", "done_blocks", "output_path", "validation_json",
+    "errors_json", "error",
 }
 
 

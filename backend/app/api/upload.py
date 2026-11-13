@@ -90,6 +90,17 @@ async def resume_job(
     return {"job_id": job_id, "status": "resuming"}
 
 
+@router.post("/jobs/{job_id}/pause")
+def pause_job(job_id: str):
+    if not job_manager.exists(job_id):
+        raise HTTPException(status_code=404, detail="Job não encontrado")
+    if not job_manager.pause_job(job_id):
+        raise HTTPException(
+            status_code=409, detail="Job não está em tradução"
+        )
+    return {"job_id": job_id, "status": "pausing"}
+
+
 @router.post("/jobs/{job_id}/cancel")
 def cancel_job(job_id: str):
     if not job_manager.cancel_job(job_id):

@@ -87,11 +87,12 @@ class TranslationPipeline:
         job = self.job_repo.get(job_id)
         if not job:
             return
-        if job["status"] == "cancelled":
+        if job["status"] in ("cancelled", "paused"):
             return
         if (
             job["status"] == "done"
             and self.block_repo.count_status(job_id, "failed") == 0
+            and self.block_repo.count_status(job_id, "pending") == 0
         ):
             return
 
@@ -121,19 +122,17 @@ class TranslationPipeline:
                 done = self.block_repo.count_status_for_chapter(chapter["id"], "done")
                 if total > 0 and done < total:
                     self.chapter_repo.set_status(chapter["id"], "pending")
-            if self._is_cancelled(job_id):
-                self.job_repo.update(
-                    job_id, status="cancelled", message="Tradução cancelada"
-                )
+            stop_reason = self._stop_reason(job_id)
+            if stop_reason:
+                self._finish_on_stop(job_id, stop_reason)
                 return
             self.job_repo.update(
                 job_id, status="translating", message="Traduzindo conteúdo..."
             )
         else:
-            if self._is_cancelled(job_id):
-                self.job_repo.update(
-                    job_id, status="cancelled", message="Tradução cancelada"
-                )
+            stop_reason = self._stop_reason(job_id)
+            if stop_reason:
+                self._finish_on_stop(job_id, stop_reason)
                 return
             self.job_repo.update(
                 job_id, status="translating", message="Retomando tradução..."
@@ -149,11 +148,9 @@ class TranslationPipeline:
             glossary_name=job["glossary"],
         )
 
-        completed = await self._translate(job_id, translator)
-        if not completed:
-            self.job_repo.update(
-                job_id, status="cancelled", message="Tradução cancelada"
-            )
+        stop_reason = await self._translate(job_id, translator)
+        if stop_reason:
+            self._finish_on_stop(job_id, stop_reason)
             return
 
         done = self.block_repo.count_status(job_id, "done")
@@ -330,14 +327,22 @@ class TranslationPipeline:
             parser_version=PDF_PARSER_VERSION,
         )
 
-    async def _translate(self, job_id: str, translator: Translator) -> bool:
+    async def _translate(
+        self, job_id: str, translator: Translator
+    ) -> Optional[str]:
+        """Traduz os blocos pendentes.
+
+        Retorna o motivo da parada ("cancelled" ou "paused") ou None quando
+        todos os capítulos foram processados.
+        """
         job = self.job_repo.get(job_id)
         total_blocks = job["total_blocks"] or 1
         chapters = self.chapter_repo.list_by_job(job_id)
 
         for chapter in chapters:
-            if self._is_cancelled(job_id):
-                return False
+            stop_reason = self._stop_reason(job_id)
+            if stop_reason:
+                return stop_reason
             if chapter["status"] == "done":
                 continue
 
@@ -350,8 +355,9 @@ class TranslationPipeline:
                 continue
 
             for batch_indices in self._chunk_indices(texts, settings.chunk_size):
-                if self._is_cancelled(job_id):
-                    return False
+                stop_reason = self._stop_reason(job_id)
+                if stop_reason:
+                    return stop_reason
 
                 batch = [pending[index] for index in batch_indices]
                 translated = await translator.translate_batch(
@@ -403,7 +409,7 @@ class TranslationPipeline:
                 job_id, done_chapters=self.chapter_repo.count_done(job_id)
             )
 
-        return True
+        return None
 
     def _assemble(self, job_id: str) -> str:
         job = self.job_repo.get(job_id)
@@ -432,9 +438,46 @@ class TranslationPipeline:
         finally:
             del book
 
-    def _is_cancelled(self, job_id: str) -> bool:
+    def _stop_reason(self, job_id: str) -> Optional[str]:
+        """Motivo para interromper a tradução, ou None para continuar.
+
+        "pausing" é a solicitação feita pela API; "paused" também interrompe
+        (por segurança, caso o status seja alterado por fora). Como o retomar
+        devolve o job para "queued" antes de rodar, o pipeline não para de
+        novo logo em seguida.
+        """
         job = self.job_repo.get(job_id)
-        return job is None or job["status"] == "cancelled"
+        if job is None:
+            return "cancelled"
+        status = job["status"]
+        if status in ("pausing", "paused"):
+            return "paused"
+        if status == "cancelled":
+            return "cancelled"
+        return None
+
+    def _finish_on_stop(self, job_id: str, reason: str) -> None:
+        job = self.job_repo.get(job_id)
+        if job is None:
+            return
+
+        status = job["status"]
+        if reason == "paused":
+            # Se um retomar (ou cancelamento) chegou enquanto o lote atual
+            # terminava, não grava "paused" por cima da decisão mais recente.
+            if status not in ("pausing", "paused"):
+                return
+            self.job_repo.update(
+                job_id,
+                status="paused",
+                message="Tradução pausada. Use retomar para continuar.",
+            )
+            return
+
+        if status == "cancelled":
+            self.job_repo.update(
+                job_id, status="cancelled", message="Tradução cancelada"
+            )
 
     @staticmethod
     def _chunk_indices(texts: List[str], max_chars: int) -> List[List[int]]:
