@@ -4,14 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EPUB Translate — Oficina de edições</title>
-    <link rel="stylesheet" href="styles.css?v=3">
+    <link rel="stylesheet" href="styles.css?v=7">
 </head>
 <body>
     <div class="container">
         <header class="masthead">
             <p class="eyebrow">Oficina de edições · EN → PT-BR</p>
             <h1>EPUB <em>Translate</em></h1>
-            <p class="lede">Traduza o texto. Preserve o livro: capítulos, imagens e tipografia.</p>
+            <p class="lede">Traduza o texto. Preserve o livro: capítulos, imagens e tipografia. PDFs são convertidos em EPUB.</p>
         </header>
 
         <nav class="tabs" aria-label="Seções do aplicativo">
@@ -26,12 +26,12 @@
         <main>
             <!-- Upload Section -->
             <section id="uploadSection" class="card">
-                <h2>Enviar um EPUB</h2>
+                <h2>Enviar um EPUB ou PDF</h2>
                 <p class="section-note">O arquivo original não sai deste computador. A tradução roda no provedor configurado abaixo.</p>
 
                 <form id="uploadForm" enctype="multipart/form-data">
                     <div class="upload-area" id="uploadArea">
-                        <input type="file" id="fileInput" name="file" accept=".epub" required>
+                        <input type="file" id="fileInput" name="file" accept=".epub,.pdf" required>
                         <div class="upload-content">
                             <svg class="upload-icon" viewBox="0 0 64 64" fill="none" stroke="currentColor"
                                  stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -39,10 +39,10 @@
                                 <path d="M38 8v10h10"/>
                                 <path d="M23 31h16M23 39h16M23 47h10"/>
                             </svg>
-                            <p class="upload-text">Arraste seu EPUB para cá</p>
+                            <p class="upload-text">Arraste seu EPUB ou PDF para cá</p>
                             <p class="upload-or">ou</p>
                             <button type="button" class="btn-secondary" onclick="document.getElementById('fileInput').click()">Selecionar arquivo</button>
-                            <p class="upload-hint">Apenas .epub · máximo 50 MB</p>
+                            <p class="upload-hint">Apenas .epub ou .pdf · máximo 50 MB</p>
                         </div>
                         <div class="file-selected" id="fileSelected" style="display: none;">
                             <span class="file-name" id="fileName"></span>
@@ -101,7 +101,7 @@
             <section id="resultSection" class="card" style="display: none;">
                 <p class="eyebrow eyebrow-accent">Edição concluída</p>
                 <h2>Tradução pronta</h2>
-                <p class="section-note">O livro foi traduzido preservando capítulos, sumário, imagens e formatação.</p>
+                <p class="section-note">O texto foi traduzido e organizado em um EPUB com capítulos, imagens e formatação.</p>
                 <p id="resultSummary" class="progress-stats"></p>
                 <a id="downloadLink" href="#" class="btn-primary download-link" download>Baixar EPUB traduzido</a>
                 <div class="actions">
@@ -137,10 +137,10 @@
         </main>
 
         <footer>
-            <p>Processamento assíncrono · Estrutura original preservada</p>
+            <p>Processamento assíncrono · EPUB preservado · PDF convertido em EPUB</p>
         </footer>
     </div>
 
-    <script src="app.js?v=3"></script>
+    <script src="app.js?v=7"></script>
 </body>
 </html>

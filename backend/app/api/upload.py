@@ -18,18 +18,29 @@ async def upload_epub(
     api_key: str = Form(None, alias="apiKey"),
     baseUrl: str = Form(None),
 ):
-    if not file.filename.endswith('.epub'):
-        raise HTTPException(status_code=400, detail="Apenas arquivos .epub são permitidos")
-    
+    suffix = Path(file.filename).suffix.lower()
+    if suffix not in {'.epub', '.pdf'}:
+        raise HTTPException(
+            status_code=400,
+            detail="Apenas arquivos .epub ou .pdf são permitidos",
+        )
+
     # Validar tamanho
     content = await file.read()
     size_mb = len(content) / (1024 * 1024)
     if size_mb > settings.max_upload_mb:
         raise HTTPException(status_code=400, detail=f"Arquivo muito grande. Máximo {settings.max_upload_mb}MB")
-    
+
+    if suffix == '.pdf' and b'%PDF-' not in content[:1024]:
+        raise HTTPException(status_code=400, detail="Arquivo PDF inválido")
+    if suffix == '.epub' and not content.startswith(b'PK'):
+        raise HTTPException(status_code=400, detail="Arquivo EPUB inválido")
+
     # Salvar arquivo
-    job_id = job_manager.create_job(file.filename)
-    file_path = Path(settings.upload_dir) / f"{job_id}_{file.filename}"
+    source_format = suffix.lstrip('.')
+    job_id = job_manager.create_job(file.filename, source_format=source_format)
+    safe_name = os.path.basename(file.filename.replace('\\', '/'))
+    file_path = Path(settings.upload_dir) / f"{job_id}_{safe_name}"
     
     async with aiofiles.open(file_path, 'wb') as f:
         await f.write(content)
@@ -48,7 +59,12 @@ async def upload_epub(
     # Processar em background
     background_tasks.add_task(job_manager.process_job, job_id, str(file_path), translation_config)
     
-    return {"job_id": job_id, "status": "pending", "message": "Upload realizado. Processamento iniciado."}
+    return {
+        "job_id": job_id,
+        "status": "pending",
+        "source_format": source_format,
+        "message": "Upload realizado. Processamento iniciado.",
+    }
 
 
 @router.get("/status/{job_id}")
@@ -86,9 +102,17 @@ def download_file(filename: str):
     file_path = Path(settings.output_dir) / filename
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Arquivo não encontrado")
-    
+
+    media_types = {
+        '.epub': 'application/epub+zip',
+        '.pdf': 'application/pdf',
+    }
+    media_type = media_types.get(
+        file_path.suffix.lower(), 'application/octet-stream'
+    )
+
     return FileResponse(
         path=str(file_path),
         filename=f"traduzido_{filename}",
-        media_type="application/epub+zip"
+        media_type=media_type,
     )

@@ -585,6 +585,22 @@ body {
     margin-bottom: 12px;
 }
 
+.job-title-block {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 0;
+}
+
+.job-format {
+    font-family: var(--mono);
+    font-size: 0.58rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+}
+
 .job .job-title {
     font-family: var(--serif);
     font-size: 1.05rem;

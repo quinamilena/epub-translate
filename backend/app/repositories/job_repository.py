@@ -25,6 +25,7 @@ class JobRepository:
         filename: str,
         *,
         source_path: str = "",
+        source_format: str = "epub",
         provider: Optional[str] = None,
         model: Optional[str] = None,
         base_url: Optional[str] = None,
@@ -35,13 +36,13 @@ class JobRepository:
         with connection() as conn:
             conn.execute(
                 """INSERT INTO jobs
-                   (id, filename, source_path, status, progress, message,
-                    provider, model, base_url, glossary, parser_version,
+                   (id, filename, source_path, source_format, status, progress,
+                    message, provider, model, base_url, glossary, parser_version,
                     created_at, updated_at)
-                   VALUES (?, ?, ?, 'queued', 0, 'Job criado', ?, ?, ?, ?, ?, ?, ?)""",
+                   VALUES (?, ?, ?, ?, 'queued', 0, 'Job criado', ?, ?, ?, ?, ?, ?, ?)""",
                 (
-                    job_id, filename, source_path, provider, model, base_url,
-                    glossary, parser_version, now, now,
+                    job_id, filename, source_path, source_format, provider,
+                    model, base_url, glossary, parser_version, now, now,
                 ),
             )
 

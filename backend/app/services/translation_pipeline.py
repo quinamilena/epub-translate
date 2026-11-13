@@ -13,6 +13,8 @@ from app.repositories.job_repository import JobRepository
 from app.services.epub_parser import PARSER_VERSION, EpubParser, read_zip_entry
 from app.services.epub_rebuilder import EpubRebuilder
 from app.services.epub_validator import EpubValidator
+from app.services.pdf_parser import PDF_PARSER_VERSION, PdfParser
+from app.services.pdf_rebuilder import PdfRebuilder
 from app.services.translator import Translator, looks_untranslated
 from app.utils.cleanup import cleanup_old_files
 
@@ -63,6 +65,8 @@ class TranslationPipeline:
         self.block_repo = BlockRepository()
         self.parser = EpubParser(settings.upload_dir, settings.temp_dir)
         self.rebuilder = EpubRebuilder(settings.output_dir)
+        self.pdf_parser = PdfParser()
+        self.pdf_rebuilder = PdfRebuilder(settings.output_dir)
         self.validator = EpubValidator()
         # A GPU/Ollama é gargalo único: processa um job por vez.
         self._lock = asyncio.Lock()
@@ -103,7 +107,12 @@ class TranslationPipeline:
             raise FileNotFoundError(f"Arquivo fonte não encontrado: {source_path}")
 
         if needs_ingest:
-            self._ingest(job_id, source_path)
+            self._ingest(
+                job_id,
+                source_path,
+                job.get("source_format")
+                or self._detect_source_format(source_path),
+            )
             # Uma retomada anterior pode ter marcado capítulos sem blocos como
             # "done". Reabre os capítulos que agora possuem blocos pendentes
             # para que sejam realmente traduzidos.
@@ -161,8 +170,16 @@ class TranslationPipeline:
             )
             return
 
+        rebuilding_message = (
+            "Convertendo PDF em EPUB..."
+            if (job.get("source_format") or "epub") == "pdf"
+            else "Reconstruindo EPUB..."
+        )
         self.job_repo.update(
-            job_id, status="rebuilding", progress=85, message="Reconstruindo EPUB..."
+            job_id,
+            status="rebuilding",
+            progress=85,
+            message=rebuilding_message,
         )
         output_path = self._assemble(job_id)
 
@@ -197,7 +214,17 @@ class TranslationPipeline:
         if settings.purge_translation_payload and failed == 0:
             self.job_repo.purge_payload(job_id)
 
-    def _ingest(self, job_id: str, source_path: str) -> None:
+    @staticmethod
+    def _detect_source_format(source_path: str) -> str:
+        return "pdf" if Path(source_path).suffix.lower() == ".pdf" else "epub"
+
+    def _ingest(
+        self, job_id: str, source_path: str, source_format: str = "epub"
+    ) -> None:
+        if source_format == "pdf":
+            self._ingest_pdf(job_id, source_path)
+            return
+
         self.job_repo.update(
             job_id, status="extracting", progress=5, message="Extraindo EPUB..."
         )
@@ -254,6 +281,54 @@ class TranslationPipeline:
             )
         finally:
             del book
+
+    def _ingest_pdf(self, job_id: str, source_path: str) -> None:
+        self.job_repo.update(
+            job_id, status="extracting", progress=5, message="Extraindo PDF..."
+        )
+
+        extracted = self.pdf_parser.extract(Path(source_path))
+        sections = extracted["sections"]
+        if not sections:
+            raise ValueError("Nenhuma seção encontrada no PDF.")
+
+        documents = [
+            {
+                "file_name": section["file_name"],
+                "item_id": section["item_id"],
+                "title": section.get("title"),
+            }
+            for section in sections
+        ]
+        self.chapter_repo.bulk_create(job_id, documents)
+        chapters = self.chapter_repo.list_by_job(job_id)
+        blocks_by_name = {
+            section["file_name"]: section["blocks"] for section in sections
+        }
+
+        total_blocks = 0
+        for index, chapter in enumerate(chapters):
+            blocks = blocks_by_name.get(chapter["file_name"], [])
+            self.block_repo.bulk_insert(job_id, chapter["id"], blocks)
+            total_blocks += len(blocks)
+            if not blocks:
+                self.chapter_repo.set_status(chapter["id"], "done")
+            progress = 5 + int((index + 1) / len(chapters) * 15)
+            self.job_repo.update(
+                job_id,
+                progress=progress,
+                message=f"Extraindo seção {index + 1}/{len(chapters)}...",
+            )
+
+        metadata = extracted.get("metadata") or {}
+        self.job_repo.update(
+            job_id,
+            progress=20,
+            source_title=metadata.get("title") or Path(source_path).stem,
+            total_chapters=len(chapters),
+            total_blocks=total_blocks,
+            parser_version=PDF_PARSER_VERSION,
+        )
 
     async def _translate(self, job_id: str, translator: Translator) -> bool:
         job = self.job_repo.get(job_id)
@@ -333,6 +408,19 @@ class TranslationPipeline:
     def _assemble(self, job_id: str) -> str:
         job = self.job_repo.get(job_id)
         chapters = self.chapter_repo.list_by_job(job_id)
+        source_format = (
+            job.get("source_format")
+            or self._detect_source_format(job["source_path"])
+        )
+
+        if source_format == "pdf":
+            return self.pdf_rebuilder.rebuild(
+                job["source_path"],
+                chapters,
+                self.block_repo,
+                job.get("source_title"),
+            )
+
         translated_items = DatabaseTranslatedItems(
             job["source_path"], self.parser, chapters, self.block_repo
         )

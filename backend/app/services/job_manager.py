@@ -7,6 +7,7 @@ from app.core.config import settings
 from app.db.database import init_db
 from app.repositories.job_repository import JobRepository
 from app.services.epub_parser import PARSER_VERSION
+from app.services.pdf_parser import PDF_PARSER_VERSION
 from app.services.translation_pipeline import TranslationPipeline
 
 
@@ -18,9 +19,18 @@ class JobManager:
         self.job_repo = JobRepository()
         self.pipeline = TranslationPipeline()
 
-    def create_job(self, filename: str) -> str:
+    def create_job(self, filename: str, source_format: str = "epub") -> str:
         job_id = str(uuid.uuid4())
-        self.job_repo.create(job_id, filename, parser_version=PARSER_VERSION)
+        source_format = (source_format or "epub").lower()
+        parser_version = (
+            PDF_PARSER_VERSION if source_format == "pdf" else PARSER_VERSION
+        )
+        self.job_repo.create(
+            job_id,
+            filename,
+            source_format=source_format,
+            parser_version=parser_version,
+        )
         return job_id
 
     def exists(self, job_id: str) -> bool:
@@ -45,6 +55,8 @@ class JobManager:
             "progress": job["progress"],
             "message": job["message"],
             "filename": job["filename"],
+            "source_format": job.get("source_format") or "epub",
+            "context_blocks": job.get("context_blocks", 2),
             "download_url": (
                 f"/download/{Path(output_path).name}" if output_path else None
             ),

@@ -116,8 +116,9 @@ fileInput.addEventListener('change', handleFileSelect);
 function handleFileSelect() {
     const file = fileInput.files[0];
     if (file) {
-        if (!file.name.endsWith('.epub')) {
-            alert('Apenas arquivos EPUB são permitidos');
+        const name = file.name.toLowerCase();
+        if (!name.endsWith('.epub') && !name.endsWith('.pdf')) {
+            alert('Apenas arquivos EPUB ou PDF são permitidos');
             fileInput.value = '';
             return;
         }
@@ -139,7 +140,7 @@ uploadForm.addEventListener('submit', async (e) => {
     
     const file = fileInput.files[0];
     if (!file) {
-        alert('Selecione um arquivo EPUB');
+        alert('Selecione um arquivo EPUB ou PDF');
         return;
     }
     
@@ -197,8 +198,9 @@ function updateStats(data) {
         return;
     }
 
+    const unit = data.source_format === 'pdf' ? 'Seções' : 'Capítulos';
     progressStats.textContent =
-        `Capítulos: ${doneChapters}/${totalChapters} • Blocos: ${doneBlocks}/${totalBlocks}`;
+        `${unit}: ${doneChapters}/${totalChapters} • Blocos: ${doneBlocks}/${totalBlocks}`;
 }
 
 function applyJobStatus(data) {
@@ -215,15 +217,20 @@ function applyJobStatus(data) {
         const total = data.total_blocks || 0;
         const done = data.done_blocks || 0;
         const pending = Math.max(total - done, 0);
+        const isPdf = data.source_format === 'pdf';
 
         resultSummary.textContent = total
             ? `Blocos traduzidos: ${done}/${total}` +
-              (pending ? ` • ${pending} pendente(s)` : '')
-            : '';
+              (pending ? ` • ${pending} pendente(s)` : '') +
+              (isPdf ? ' • PDF convertido em EPUB' : '')
+            : (isPdf ? 'PDF convertido em EPUB.' : '');
         resultResumeBtn.style.display = pending ? 'inline-block' : 'none';
         if (pending) {
             resultResumeBtn.textContent = `Retomar ${pending} bloco(s)`;
         }
+        downloadLink.textContent = isPdf
+            ? 'Baixar EPUB convertido do PDF'
+            : 'Baixar EPUB traduzido';
 
         let downloadUrl = data.download_url || '';
         if (downloadUrl.startsWith('/api/')) {
@@ -434,7 +441,9 @@ function formatJobStats(job) {
 
     if (!totalChapters && !totalBlocks) return '';
 
-    return `Capítulos: ${doneChapters}/${totalChapters} • Blocos: ${doneBlocks}/${totalBlocks}`;
+    const unit = job.source_format === 'pdf' ? 'Seções' : 'Capítulos';
+    return `${unit}: ${doneChapters}/${totalChapters} • Blocos: ${doneBlocks}/${totalBlocks}`;
+}
 }
 
 function renderJob(job) {
@@ -443,9 +452,18 @@ function renderJob(job) {
     if (isJobInProgress(job)) card.classList.add('job-active');
 
     const header = makeElement('div', 'job-header');
-    header.appendChild(
+    const titleBlock = makeElement('div', 'job-title-block');
+    titleBlock.appendChild(
         makeElement('h3', 'job-title', job.filename || 'Arquivo sem nome')
     );
+    titleBlock.appendChild(
+        makeElement(
+            'span',
+            'job-format',
+            job.source_format === 'pdf' ? 'PDF → EPUB' : 'EPUB'
+        )
+    );
+    header.appendChild(titleBlock);
 
     const statusElement = makeElement(
         'span', 'job-status', STATUS_LABELS[status] || status

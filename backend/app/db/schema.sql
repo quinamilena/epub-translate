@@ -2,6 +2,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     id              TEXT PRIMARY KEY,
     filename        TEXT NOT NULL,
     source_path     TEXT NOT NULL DEFAULT '',
+    source_format   TEXT NOT NULL DEFAULT 'epub',
     status          TEXT NOT NULL DEFAULT 'queued',
     progress        INTEGER NOT NULL DEFAULT 0,
     message         TEXT,
